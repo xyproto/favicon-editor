@@ -102,16 +102,6 @@ func (e *Editor) CopyLines() map[int][]rune {
 	return lines2
 }
 
-// DrawMode returns true if the editor is in "text edit mode" and the cursor should not float around
-func (e *Editor) DrawMode() bool {
-	return e.drawMode
-}
-
-// ToggleDrawMode toggles if the editor is in "text edit mode" or "ASCII graphics mode"
-func (e *Editor) ToggleDrawMode() {
-	e.drawMode = !e.drawMode
-}
-
 // Set will store a rune in the editor data, at the given data coordinates
 func (e *Editor) Set(x, y int, r rune) {
 	if e.lines == nil {
@@ -176,9 +166,6 @@ func (e *Editor) ScreenLine(n int) string {
 			sb.WriteRune(r)
 		}
 		tabSpace := "\t"
-		if !e.DrawMode() {
-			tabSpace = strings.Repeat("\t", e.spacesPerTab)
-		}
 		//return strings.ReplaceAll(sb.String(), "\t", tabSpace)
 		return strings.Replace(sb.String(), "\t", tabSpace, -1)
 	}
@@ -194,20 +181,12 @@ func (e *Editor) LastDataPosition(n int) int {
 // LastScreenPosition returns the last X index for this line, for the screen (expands tabs)
 // Can be negative, if the line is empty.
 func (e *Editor) LastScreenPosition(n int) int {
-	if e.DrawMode() {
-		return e.LastDataPosition(n)
-	}
-	// TODO: THIS IS WRONG, it does not account for unicode characters
-	extraSpaceBecauseOfTabs := int(e.Count('\t', n) * (e.spacesPerTab - 1))
-	return e.LastDataPosition(n) + extraSpaceBecauseOfTabs
+	return e.LastDataPosition(n)
 }
 
 // FirstScreenPosition returns the first X index for this line, that is not whitespace.
 func (e *Editor) FirstScreenPosition(n int) int {
-	spacesPerTab := e.spacesPerTab
-	if e.DrawMode() {
-		spacesPerTab = 1
-	}
+	spacesPerTab := 1
 	counter := 0
 	for _, r := range e.Line(n) {
 		if unicode.IsSpace(r) {
@@ -388,7 +367,8 @@ func (e *Editor) PrepareEmpty(c *vt100.Canvas, tty *vt100.TTY, filename string) 
 
 // Save will try to save a file
 // if asOther is true, .ico files will be saved as .png, and .png files will be saved as .ico
-func (e *Editor) Save(filename *string, stripTrailingSpaces, asOther bool) error {
+func (e *Editor) Save(filename *string, asOther bool) error {
+	stripTrailingSpaces := true
 	if strings.HasSuffix(*filename, ".ico") || strings.HasSuffix(*filename, ".png") {
 		// TODO: Find a way to check if the file was written with "o".
 		//       If it was not, save to a new flename.
@@ -440,9 +420,6 @@ func (e *Editor) TrimRight(n int) {
 // WriteLines will draw editor lines from "fromline" to and up to "toline" to the canvas, at cx, cy
 func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error {
 	tabString := " "
-	if !e.DrawMode() {
-		tabString = strings.Repeat(" ", e.spacesPerTab)
-	}
 	w := int(c.Width())
 	if fromline >= toline {
 		return errors.New("fromline >= toline in WriteLines")
@@ -1238,69 +1215,26 @@ func (e *Editor) UpEnd(c *vt100.Canvas) error {
 
 // Next will move the cursor to the next position in the contents
 func (e *Editor) Next(c *vt100.Canvas) error {
-	// Ignore it if the position is out of bounds
-	x, _ := e.DataX()
-	atTab := e.Get(x, e.DataY()) == '\t'
-	if atTab && !e.DrawMode() {
-		e.pos.sx += e.spacesPerTab
-	} else {
-		e.pos.sx++
-	}
+	e.pos.sx++
 	// Did we move too far on this line?
 	w := e.wordWrapAt
 	if c != nil {
 		w = int(c.W())
 	}
-	if (!e.DrawMode() && e.AfterLineScreenContentsPlusOne()) || (e.DrawMode() && e.pos.sx >= w) {
+	if e.pos.sx >= w {
 		// Undo the move
-		if atTab && !e.DrawMode() {
-			e.pos.sx -= e.spacesPerTab
-		} else {
-			e.pos.sx--
-		}
-		// Move down
-		if !e.DrawMode() {
-			err := e.pos.Down(c)
-			if err != nil {
-				return err
-			}
-			// Move to the start of the line
-			e.pos.sx = 0
-		}
+		e.pos.sx--
 	}
 	return nil
 }
 
 // Prev will move the cursor to the previous position in the contents
 func (e *Editor) Prev(c *vt100.Canvas) error {
-	atTab := false
-	// Ignore it if the position is out of bounds
-	x, _ := e.DataX()
-	if x > 0 {
-		atTab = e.Get(x-1, e.DataY()) == '\t'
-	}
-	// If at a tab character, move a few more posisions
-	if atTab && !e.DrawMode() {
-		e.pos.sx -= e.spacesPerTab
-	} else {
-		e.pos.sx--
-	}
+	e.pos.sx--
 	// Did we move too far?
 	if e.pos.sx < 0 {
 		// Undo the move
-		if atTab && !e.DrawMode() {
-			e.pos.sx += e.spacesPerTab
-		} else {
-			e.pos.sx++
-		}
-		// Move up, and to the end of the line above, if in EOL mode
-		if !e.DrawMode() {
-			err := e.pos.Up()
-			if err != nil {
-				return err
-			}
-			e.End()
-		}
+		e.pos.sx++
 	}
 	return nil
 }
@@ -1449,10 +1383,7 @@ func (e *Editor) WriteRune(c *vt100.Canvas) {
 
 // WriteTab writes spaces when there is a tab character, to the canvas
 func (e *Editor) WriteTab(c *vt100.Canvas) {
-	spacesPerTab := e.spacesPerTab
-	if e.DrawMode() {
-		spacesPerTab = 1
-	}
+	spacesPerTab := 1
 	for x := e.pos.sx; x < e.pos.sx+spacesPerTab; x++ {
 		c.WriteRune(uint(x), uint(e.pos.sy), e.fg, e.bg, ' ')
 	}

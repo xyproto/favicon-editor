@@ -191,7 +191,7 @@ Set NO_COLOR=1 to disable colors.
 		}
 
 		// Test save, to check if the file can be created and written, or not
-		if err := e.Save(&filename, true, false); err != nil {
+		if err := e.Save(&filename, false); err != nil {
 			// Check if the new file can be saved before the user starts working on the file.
 			quitError(tty, err)
 		} else {
@@ -244,7 +244,7 @@ Set NO_COLOR=1 to disable colors.
 		case "c:0": // ctrl-space, build source code to executable, word wrap, convert to PDF or write to PNG, depending on the mode
 			if strings.HasSuffix(baseFilename, ".ico") {
 				// Save .ico as .png
-				err := e.Save(&filename, !e.DrawMode(), true)
+				err := e.Save(&filename, true)
 				if err != nil {
 					statusMessage = err.Error()
 					status.ClearAll(c)
@@ -258,7 +258,7 @@ Set NO_COLOR=1 to disable colors.
 				break // from case
 			} else if strings.HasSuffix(baseFilename, ".png") {
 				// Save .png as .ico
-				err := e.Save(&filename, !e.DrawMode(), true)
+				err := e.Save(&filename, true)
 				if err != nil {
 					statusMessage = err.Error()
 					status.ClearAll(c)
@@ -278,84 +278,19 @@ Set NO_COLOR=1 to disable colors.
 			status.SetMessage(statusMessage)
 			status.Show(c, e)
 		case "←": // left arrow
-			if !e.DrawMode() {
-				e.Prev(c)
-				if e.AfterLineScreenContents() {
-					e.End()
-				}
-				e.SaveX(true)
-			} else {
-				// Draw mode
-				e.pos.Left()
-			}
+			// Draw mode
+			e.pos.Left()
 			e.redrawCursor = true
 		case "→": // right arrow
-			if !e.DrawMode() {
-				if e.DataY() < e.Len() {
-					e.Next(c)
-				}
-				if e.AfterLineScreenContents() {
-					e.End()
-				}
-				e.SaveX(true)
-			} else {
-				// Draw mode
-				e.pos.Right(c)
-			}
+			// Draw mode
+			e.pos.Right(c)
 			e.redrawCursor = true
 		case "↑": // up arrow
 			// Move the screen cursor
-			if !e.DrawMode() {
-				if e.DataY() > 0 {
-					// Move the position up in the current screen
-					if e.UpEnd(c) != nil {
-						// If below the top, scroll the contents up
-						if e.DataY() > 0 {
-							e.redraw = e.ScrollUp(c, status, 1)
-							e.redrawCursor = true
-							e.pos.Down(c)
-							e.UpEnd(c)
-						}
-					}
-					// If the cursor is after the length of the current line, move it to the end of the current line
-					if e.AfterLineScreenContents() {
-						e.End()
-					}
-				}
-				// If the cursor is after the length of the current line, move it to the end of the current line
-				if e.AfterLineScreenContents() {
-					e.End()
-				}
-			} else {
-				e.pos.Up()
-			}
+			e.pos.Up()
 			e.redrawCursor = true
 		case "↓": // down arrow
-			if !e.DrawMode() {
-				if e.DataY() < e.Len() {
-					// Move the position down in the current screen
-					if e.DownEnd(c) != nil {
-						// If at the bottom, don't move down, but scroll the contents
-						// Output a helpful message
-						if !e.AfterEndOfDocument() {
-							e.redraw = e.ScrollDown(c, status, 1)
-							e.redrawCursor = true
-							e.pos.Up()
-							e.DownEnd(c)
-						}
-					}
-					// If the cursor is after the length of the current line, move it to the end of the current line
-					if e.AfterLineScreenContents() {
-						e.End()
-					}
-				}
-				// If the cursor is after the length of the current line, move it to the end of the current line
-				if e.AfterLineScreenContents() {
-					e.End()
-				}
-			} else {
-				e.pos.Down(c)
-			}
+			e.pos.Down(c)
 			e.redrawCursor = true
 		case "c:14": // ctrl-n, scroll down or jump to next match
 			// Scroll down
@@ -367,154 +302,32 @@ Set NO_COLOR=1 to disable colors.
 				status.Show(c, e)
 			}
 			e.redrawCursor = true
-			if !e.DrawMode() && e.AfterLineScreenContents() {
-				e.End()
-			}
 		case "c:16": // ctrl-p, scroll up
 			e.redraw = e.ScrollUp(c, status, e.pos.scrollSpeed)
 			e.redrawCursor = true
-			if !e.DrawMode() && e.AfterLineScreenContents() {
-				e.End()
-			}
 		case "c:27": // esc, clear search term, reset, clean and redraw
 			c = e.FullResetRedraw(c, status)
 		case " ": // space
 			undo.Snapshot(e)
 			// Place a space
-			if !e.DrawMode() {
-				e.InsertRune(c, ' ')
-				e.redraw = true
-			} else {
-				e.SetRune(' ')
-			}
+			e.SetRune(' ')
 			e.WriteRune(c)
-			if e.DrawMode() {
-				e.redraw = true
-			} else {
-				// Move to the next position
-				e.Next(c)
-			}
+			e.redraw = true
 		case "c:13": // return
 			undo.Snapshot(e)
 			// if the current line is empty, insert a blank line
-			if !e.DrawMode() {
-				e.TrimRight(e.DataY())
-				lineContents := e.CurrentLine()
-				if e.pos.AtStartOfLine() {
-					// Insert a new line a the current y position, then shift the rest down.
-					e.InsertLineAbove()
-					// Also move the cursor to the start, since it's now on a new blank line.
-					e.pos.Down(c)
-					e.Home()
-				} else if e.AtOrBeforeStartOfTextLine() {
-					x := e.pos.ScreenX()
-					// Insert a new line a the current y position, then shift the rest down.
-					e.InsertLineAbove()
-					// Also move the cursor to the start, since it's now on a new blank line.
-					e.pos.Down(c)
-					e.pos.SetX(x)
-				} else if e.AtOrAfterEndOfLine() && e.AtLastLineOfDocument() {
-					leadingWhitespace := e.LeadingWhitespace()
-					if len(lineContents) > 0 && (strings.HasSuffix(lineContents, "(") || strings.HasSuffix(lineContents, "{") || strings.HasSuffix(lineContents, "[")) {
-						// "smart indentation"
-						leadingWhitespace += "\t"
-					}
-					e.InsertLineBelow()
-					h := int(c.Height())
-					if e.pos.sy >= (h - 1) {
-						e.ScrollDown(c, status, 1)
-						e.redrawCursor = true
-					}
-					e.pos.Down(c)
-					e.Home()
-					// Insert the same leading whitespace for the new line, while moving to the right
-					for _, r := range leadingWhitespace {
-						e.InsertRune(c, r)
-						e.Next(c)
-					}
-				} else if e.AfterEndOfLine() {
-					leadingWhitespace := e.LeadingWhitespace()
-					if len(lineContents) > 0 && (strings.HasSuffix(lineContents, "(") || strings.HasSuffix(lineContents, "{") || strings.HasSuffix(lineContents, "[")) {
-						// "smart indentation"
-						leadingWhitespace += "\t"
-					}
-					e.InsertLineBelow()
-					e.Down(c, status)
-					e.Home()
-					// Insert the same leading whitespace for the new line, while moving to the right
-					for _, r := range leadingWhitespace {
-						e.InsertRune(c, r)
-						e.Next(c)
-					}
-				} else {
-					// Split the current line in two
-					if !e.SplitLine() {
-						// Grab the leading whitespace from the current line
-						leadingWhitespace := e.LeadingWhitespace()
-						// Insert a line below, then move down and to the start of it
-						e.InsertLineBelow()
-						e.Down(c, status)
-						e.Home()
-						// Insert the same leading whitespace for the new line, while moving to the right
-						for _, r := range leadingWhitespace {
-							e.InsertRune(c, r)
-							e.Next(c)
-						}
-					} else {
-						e.Down(c, status)
-						e.Home()
-					}
-				}
-			} else {
-				if e.AtLastLineOfDocument() {
-					e.CreateLineIfMissing(e.DataY() + 1)
-				}
-				e.pos.Down(c)
+			if e.AtLastLineOfDocument() {
+				e.CreateLineIfMissing(e.DataY() + 1)
 			}
+			e.pos.Down(c)
 			e.redraw = true
 		case "c:8", "c:127": // ctrl-h or backspace
 			undo.Snapshot(e)
-			if !e.DrawMode() && e.EmptyLine() {
-				e.DeleteLine(e.DataY())
-				e.pos.Up()
-				e.TrimRight(e.DataY())
-				e.End()
-			} else if !e.DrawMode() && e.pos.AtStartOfLine() {
-				if e.DataY() > 0 {
-					e.pos.Up()
-					e.End()
-					e.TrimRight(e.DataY())
-					e.Delete()
-				}
-			} else {
-				// Move back
-				e.Prev(c)
-				// Type a blank
-				e.SetRune(' ')
-				e.WriteRune(c)
-				if !e.DrawMode() && !e.AtOrAfterEndOfLine() {
-					// Delete the blank
-					e.Delete()
-				}
-			}
-			e.redrawCursor = true
-			e.redraw = true
-		case "c:9": // tab
-			undo.Snapshot(e)
-			if !e.DrawMode() {
-				// Place a tab
-				if !e.DrawMode() {
-					e.InsertRune(c, '\t')
-				} else {
-					e.SetRune('\t')
-				}
-				// Write the spaces that represent the tab
-				e.WriteTab(c)
-				// Move to the next position
-				if !e.DrawMode() {
-					e.Next(c)
-				}
-			}
+			// Move back
+			e.Prev(c)
+			// Type a blank
+			e.SetRune(' ')
+			e.WriteRune(c)
 			e.redrawCursor = true
 			e.redraw = true
 		case "c:1", "c:25": // ctrl-a, home (or ctrl-y for scrolling up in the st terminal)
@@ -570,15 +383,10 @@ Set NO_COLOR=1 to disable colors.
 		case "c:19": // ctrl-s, save
 			status.ClearAll(c)
 			// Save the file
-			if err := e.Save(&filename, !e.DrawMode(), false); err != nil {
+			if err := e.Save(&filename, false); err != nil {
 				status.SetMessage(err.Error())
 				status.Show(c, e)
 			} else {
-				// TODO: Go to the end of the document at this point, if needed
-				// Lines may be trimmed for whitespace, so move to the end, if needed
-				if !e.DrawMode() && e.AfterLineScreenContents() {
-					e.End()
-				}
 				// Status message
 				status.SetMessage("Saved " + filename)
 				status.Show(c, e)
@@ -636,15 +444,6 @@ Set NO_COLOR=1 to disable colors.
 				status.Show(c, e)
 			} else {
 				e.DeleteRestOfLine()
-				if !e.DrawMode() && e.EmptyRightTrimmedLine() {
-					// Deleting the rest of the line cleared this line,
-					// so just remove it.
-					e.DeleteLine(e.DataY())
-					// Then go to the end of the line, if needed
-					if e.AtOrAfterEndOfLine() {
-						e.End()
-					}
-				}
 				vt100.Do("Erase End of Line")
 				e.redraw = true
 			}
@@ -695,22 +494,9 @@ Set NO_COLOR=1 to disable colors.
 				undo.Snapshot(e)
 				// Type the letter that was pressed
 				if len([]rune(key)) > 0 {
-					if !e.DrawMode() {
-						// Was this a special case of "OK" as the first thing written?
-						if key == "K" {
-							e.InsertRune(c, 'O')
-							e.WriteRune(c)
-							e.Next(c)
-						}
-						// Insert a letter. This is what normally happens.
-						e.InsertRune(c, []rune(key)[0])
-						e.WriteRune(c)
-						e.Next(c)
-					} else {
-						// Replace this letter.
-						e.SetRune([]rune(key)[0])
-						e.WriteRune(c)
-					}
+					// Replace this letter.
+					e.SetRune([]rune(key)[0])
+					e.WriteRune(c)
 					e.redraw = true
 				}
 			} else if len([]rune(key)) > 0 && unicode.IsGraphic([]rune(key)[0]) { // any other key that can be drawn
@@ -731,18 +517,8 @@ Set NO_COLOR=1 to disable colors.
 					}
 				}
 
-				if !e.DrawMode() {
-					e.InsertRune(c, []rune(key)[0])
-				} else {
-					e.SetRune([]rune(key)[0])
-				}
+				e.SetRune([]rune(key)[0])
 				e.WriteRune(c)
-				if len(string(r)) > 0 {
-					if !e.DrawMode() {
-						// Move to the next position
-						e.Next(c)
-					}
-				}
 				e.redrawCursor = true
 				e.redraw = true
 			}
