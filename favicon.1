@@ -1,0 +1,89 @@
+.\"             -*-Nroff-*-
+.\"
+.TH "favicon" 1 "16 Apr 2020" "" ""
+.SH NAME
+o \- a 16-color grayscale favicon editor
+.SH SYNOPSIS
+.B o
+filename [LINE NUMBER]
+.sp
+.SH DESCRIPTION
+Edit an existing favicon.ico file, favicon.png file or create a new one.
+.sp
+.SH OPTIONS
+.sp
+.TP
+.B \-v or\-\-version
+displays the current version number
+.TP
+.B \-h or \-\-help
+displays brief usage information
+.PP
+.SH KEYBINDINGS
+.sp
+.B ctrl-q
+  Quit o.
+.sp
+.B ctrl-s
+  Save the file.
+.sp
+.B ctrl-a
+  Go to start of the text, then the start of the line and then the previous line.
+.sp
+.B ctrl-e
+  Go to end of the line and then the next line.
+.sp
+.B ctrl-p
+  Scroll up 10 lines.
+.sp
+.B ctrl-n
+  Scroll down 10 lines or go to the next match if a search is active.
+.sp
+.B ctrl-k
+  Delete all characters to the end of the line. Delete the line if it is empty.
+.sp
+.B ctrl-d
+  Delete a single character.
+.sp
+.B ctrl-x
+  Cut the current line.
+.sp
+.B ctrl-c
+  Copy the current line.
+.sp
+.B ctrl-v
+  Paste the current line.
+.sp
+.B ctrl-u
+  Undo (`ctrl-z` is also possible, but may background the application).
+.sp
+.B ctrl-l
+  Jump to a specific line number.
+.sp
+.B esc
+  Redraw the screen and clear the last search.
+.sp
+.B ctrl-space
+  Export to `.png` if editing an `.ico` file.
+  Export to `.ico` if editing a `.png` file.
+.sp
+.B ctrl-~
+  Save and quit.
+.sp
+.SH "ENV"
+.sp
+The `NO_COLOR` environment variable can be set to 1 to disable all colors.
+.sp
+.SH "WHY"
+.sp
+I wanted a simple way to create small favicon.ico files while using ssh.
+.SH "SEE ALSO"
+.BR mtpaint (1)
+.BR gimp (1)
+.SH BUGS
+Lines longer than the terminal width are not handled gracefully.
+.SH VERSION
+1.0.0
+.SH AUTHOR
+.B favicon
+was written by  Alexander F. Rødseth <xyproto@archlinux.org>
