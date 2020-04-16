@@ -621,22 +621,7 @@ func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error
 				counter += len([]rune(screenLine))
 			} else {
 				// Color and unescape
-				var coloredString string
-				if e.mode == modeGit {
-					coloredString = e.gitHighlight(line)
-				} else if e.mode == modeMarkdown {
-					if highlighted, ok, codeBlockFound := markdownHighlight(line, inCodeBlock); ok {
-						coloredString = highlighted
-						if codeBlockFound {
-							inCodeBlock = !inCodeBlock
-						}
-					} else {
-						// Syntax highlight the line if it's not picked up by the markdownHighlight function
-						coloredString = UnEscape(o.DarkTags(string(textWithTags)))
-					}
-				} else {
-					coloredString = UnEscape(o.DarkTags(string(textWithTags)))
-				}
+				coloredString := UnEscape(o.DarkTags(string(textWithTags)))
 
 				// Slice of runes and color attributes, while at the same time highlighting search terms
 				charactersAndAttributes := o.Extract(coloredString)
