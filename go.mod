@@ -8,7 +8,6 @@ require (
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/xyproto/syntax v1.5.0
-	github.com/xyproto/textoutput v1.11.0
 	github.com/xyproto/vt100 v1.8.3
 	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 // indirect
 )

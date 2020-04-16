@@ -50,12 +50,6 @@ On Linux:
     gzip favicon.1
     sudo install -Dm644 favicon.1.gz /usr/share/man/man1/favicon.1.gz
 
-## Spinner
-
-When loading large files, an animated spinner will appear. The loading operation can be interrupted by pressing `esc`, `q` or `ctrl-q`.
-
-![progress](img/progress.gif)
-
 ## Easter eggs
 
 Pressing `ctrl-space` will render Markdown files to PDF using `pandoc` (as opposed to `ctrl-r`, which will save the text directly to a PDF, without using `pandoc`).

@@ -18,11 +18,6 @@ import (
 
 const version = "favicon 1.0.0"
 
-var (
-	rebasePrefixes   = []string{"p", "pick", "r", "reword", "d", "drop", "e", "edit", "s", "squash", "f", "fixup", "x", "exec", "b", "break", "l", "label", "t", "reset", "m", "merge"}
-	checkboxPrefixes = []string{"- [ ]", "- [x]", "- [X]", "* [ ]", "* [x]", "* [X]"}
-)
-
 func main() {
 	var (
 		// Color scheme for the "text edit" mode

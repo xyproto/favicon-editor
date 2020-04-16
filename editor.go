@@ -5,12 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
-	"time"
 	"unicode"
 
-	"github.com/xyproto/textoutput"
 	"github.com/xyproto/vt100"
 )
 
@@ -73,6 +70,25 @@ func NewSimpleEditor(wordWrapLimit int) *Editor {
 	e := NewEditor(4, vt100.White, vt100.Black, true, 1, vt100.Magenta, modeBlank)
 	e.wordWrapAt = wordWrapLimit
 	return e
+}
+
+// setLightTheme sets a theme suitable for white backgrounds
+func (e *Editor) setLightTheme() {
+	e.fg = vt100.Black
+	e.bg = vt100.Gray
+	e.searchFg = vt100.Red
+	e.gitColor = vt100.Blue
+
+	// Markdown, switch light colors to darker ones
+	headerTextColor = vt100.Blue
+	textColor = vt100.Default
+	listTextColor = vt100.Default
+	imageColor = vt100.Green
+	boldColor = vt100.Blue
+	xColor = vt100.Blue
+	listCodeColor = vt100.Red
+	codeColor = vt100.Red
+	codeBlockColor = vt100.Red
 }
 
 // CopyLines will create a new map[int][]rune struct that is the copy of all the lines in the editor
@@ -267,124 +283,6 @@ func (e *Editor) Load(c *vt100.Canvas, tty *vt100.TTY, filename string) (string,
 
 	var message string
 
-	// Start a spinner, in a little short while
-	quit := make(chan bool)
-	go func() {
-
-		// Wait 4 * 4 milliseconds, while listening to the quit channel.
-		// This is to delay showing the progressbar until some time has passed.
-		for i := 0; i < 4; i++ {
-			// Check if we should quit or wait
-			select {
-			case <-quit:
-				return
-			default:
-				// Wait a tiny bit
-				time.Sleep(4 * time.Millisecond)
-			}
-		}
-
-		// Find a good start location
-		w := int(c.Width())
-		h := int(c.Height())
-		x := uint(w / 7)
-		y := uint(h / 7)
-
-		// Move the cursor there and write a message
-		vt100.SetXY(x, y)
-		msg := vt100.White.Get(fmt.Sprintf("Reading %s... ", filename))
-		fmt.Print(msg)
-
-		// Store the position after the message
-		x += uint(len(msg)) + 1
-
-		// Prepare to output colored text
-		o := textoutput.NewTextOutput(true, true)
-		vt100.ShowCursor(false)
-
-		noColor := os.Getenv("NO_COLOR") != ""
-
-		var counter uint
-
-		// Start the spinner
-		for {
-			select {
-			case <-quit:
-				vt100.ShowCursor(true)
-				return
-			default:
-				vt100.SetXY(x, y)
-				s := ""
-				// Switch between 12 different ASCII images
-				if noColor {
-					switch counter % 12 {
-					case 0:
-						s = "| c · · |"
-					case 1:
-						s = "|  C· · |"
-					case 2:
-						s = "|   c · |"
-					case 3:
-						s = "|    C· |"
-					case 4:
-						s = "|     c |"
-					case 5:
-						s = "|      o|"
-					case 6:
-						s = "| · · © |"
-					case 7:
-						s = "| · ·©  |"
-					case 8:
-						s = "| · ©   |"
-					case 9:
-						s = "| ·©    |"
-					case 10:
-						s = "| ©     |"
-					case 11:
-						s = "|o· · · |"
-					}
-				} else {
-					switch counter % 12 {
-					case 0:
-						s = "<red>| <yellow>c<blue> · ·</blue> <red>|<off>"
-					case 1:
-						s = "<red>| <blue> <yellow>C<blue>· · <red>|<off>"
-					case 2:
-						s = "<red>| <blue>  <yellow>c<blue> · <red>|<off>"
-					case 3:
-						s = "<red>| <blue>   <yellow>C<blue>· <red>|<off>"
-					case 4:
-						s = "<red>| <blue>    <yellow>c <red>|<off>"
-					case 5:
-						s = "<red>| <blue>     <yellow>o<red>|<off>"
-					case 6:
-						s = "<red>| <blue>· · <yellow>© <red>|<off>"
-					case 7:
-						s = "<red>| <blue>· ·<yellow>©<blue>  <red>|<off>"
-					case 8:
-						s = "<red>| <blue>· <yellow>© <blue>  <red>|<off>"
-					case 9:
-						s = "<red>| <blue>·<yellow>©<blue>    <red>|<off>"
-					case 10:
-						s = "<red>| <yellow>© <blue>    <red>|<off>"
-					case 11:
-						s = "<red>|<yellow>o<blue>· · · <red>|<off>"
-					}
-
-				}
-				o.Print(s)
-				counter++
-				// Wait for a key press (also sleeps just a bit)
-				switch tty.Key() {
-				case 27, 113, 17: // esc, q or ctrl-q
-					vt100.ShowCursor(true)
-					quitMessage(tty, "reading "+filename+": stopped by user")
-				}
-			}
-
-		}
-	}()
-
 	var (
 		mode Mode
 		data []byte
@@ -417,9 +315,6 @@ func (e *Editor) Load(c *vt100.Canvas, tty *vt100.TTY, filename string) (string,
 			data = bytes.Replace(data, []byte{'\r'}, []byte{'\n'}, -1)
 		}
 	}
-
-	// Stop the spinner
-	quit <- true
 
 	// Check if the file could be read
 	if err != nil {
