@@ -10,7 +10,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/xyproto/syntax"
 	"github.com/xyproto/textoutput"
 	"github.com/xyproto/vt100"
 )
@@ -33,7 +32,6 @@ type Editor struct {
 	fg               vt100.AttributeColor // default foreground color
 	bg               vt100.AttributeColor // default background color
 	spacesPerTab     int                  // how many spaces per tab character
-	syntaxHighlight  bool                 // syntax highlighting
 	drawMode         bool                 // text or draw mode (for ASCII graphics)?
 	pos              Position             // the current cursor and scroll position
 	searchTerm       string               // for marking found instances
@@ -50,34 +48,29 @@ type Editor struct {
 // * the number of spaces per tab (typically 2, 4 or 8)
 // * foreground color attributes
 // * background color attributes
-// * if syntax highlighting is enabled
 // * if "insert mode" is enabled (as opposed to "draw mode")
-func NewEditor(spacesPerTab int, fg, bg vt100.AttributeColor, syntaxHighlight, textEditMode bool, scrollSpeed int, searchFg vt100.AttributeColor, scheme syntax.TextConfig, mode Mode) *Editor {
-	syntax.DefaultTextConfig = scheme
+func NewEditor(spacesPerTab int, fg, bg vt100.AttributeColor, textEditMode bool, scrollSpeed int, searchFg vt100.AttributeColor, mode Mode) *Editor {
 	e := &Editor{}
 	e.lines = make(map[int][]rune)
 	e.fg = fg
 	e.bg = bg
 	e.spacesPerTab = spacesPerTab
-	e.syntaxHighlight = syntaxHighlight
 	e.drawMode = !textEditMode
 	p := NewPosition(scrollSpeed)
 	e.pos = *p
 	e.searchFg = searchFg
 	// If the file is not to be highlighted, set word wrap to 99 (0 to disable)
-	if !syntaxHighlight {
-		e.wordWrapAt = 99
-	}
+	e.wordWrapAt = 99
 	e.mode = mode
 	return e
 }
 
 // NewSimpleEditor return a new simple editor, where the settings are 4 spaces per tab, white text on black background,
-// no syntax highlighting, text edit mode (as opposed to ASCII draw mode), scroll 1 line at a time, color
-// search results magenta, use the default syntax highlighting scheme, don't use git mode and don't use markdown mode,
+// text edit mode (as opposed to ASCII draw mode), scroll 1 line at a time, color
+// search results magenta and use a blank mode
 // then set the word wrap limit at the given column width.
 func NewSimpleEditor(wordWrapLimit int) *Editor {
-	e := NewEditor(4, vt100.White, vt100.Black, false, true, 1, vt100.Magenta, syntax.DefaultTextConfig, modeBlank)
+	e := NewEditor(4, vt100.White, vt100.Black, true, 1, vt100.Magenta, modeBlank)
 	e.wordWrapAt = wordWrapLimit
 	return e
 }
@@ -405,7 +398,6 @@ func (e *Editor) Load(c *vt100.Canvas, tty *vt100.TTY, filename string) (string,
 		mode, data, message, err = ReadFavicon(filename, false, false)
 		if err == nil { // no error
 			e.mode = mode
-			e.syntaxHighlight = false
 			e.drawMode = true
 		}
 	} else if strings.HasSuffix(filename, ".png") {
@@ -413,7 +405,6 @@ func (e *Editor) Load(c *vt100.Canvas, tty *vt100.TTY, filename string) (string,
 		mode, data, message, err = ReadFavicon(filename, false, true)
 		if err == nil { // no error
 			e.mode = mode
-			e.syntaxHighlight = false
 			e.drawMode = true
 		}
 	} else {
@@ -467,14 +458,12 @@ func (e *Editor) PrepareEmpty(c *vt100.Canvas, tty *vt100.TTY, filename string) 
 		// Create empty content
 		mode, data, _, err = ReadFavicon(filename, true, false)
 		if err == nil { // no error
-			e.syntaxHighlight = false
 			e.drawMode = true
 		}
 	} else if strings.HasSuffix(filename, ".png") {
 		// Create empty content
 		mode, data, _, err = ReadFavicon(filename, true, true)
 		if err == nil { // no error
-			e.syntaxHighlight = false
 			e.drawMode = true
 		}
 	}
@@ -555,7 +544,6 @@ func (e *Editor) TrimRight(n int) {
 
 // WriteLines will draw editor lines from "fromline" to and up to "toline" to the canvas, at cx, cy
 func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error {
-	o := textoutput.NewTextOutput(true, true)
 	tabString := " "
 	if !e.DrawMode() {
 		tabString = strings.Repeat(" ", e.spacesPerTab)
@@ -566,7 +554,6 @@ func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error
 	}
 	numlines := toline - fromline
 	offset := fromline
-	noColor := os.Getenv("NO_COLOR") != ""
 	for y := 0; y < numlines; y++ {
 		counter := 0
 		//line := strings.ReplaceAll(e.Line(y+offset), "\t", tabString)
@@ -575,74 +562,9 @@ func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error
 		if len([]rune(screenLine)) >= w {
 			screenLine = screenLine[:w]
 		}
-		if e.syntaxHighlight && !noColor {
-			// Output a syntax highlighted line. Escape any tags in the input line.
-			// textWithTags must be unescaped if there is not an error.
-			if textWithTags, err := syntax.AsText([]byte(Escape(line))); err != nil {
-				// Only output the line up to the width of the canvas
-				fmt.Println(screenLine)
-				counter += len([]rune(screenLine))
-			} else {
-				// Color and unescape
-				coloredString := UnEscape(o.DarkTags(string(textWithTags)))
-
-				// Slice of runes and color attributes, while at the same time highlighting search terms
-				charactersAndAttributes := o.Extract(coloredString)
-				searchTermRunes := []rune(e.searchTerm)
-				matchForAnotherN := 0
-				for characterIndex, ca := range charactersAndAttributes {
-					letter := ca.R
-					fg := ca.A
-					if letter == ' ' {
-						fg = e.fg
-					}
-					if matchForAnotherN > 0 {
-						// Coloring an already found match
-						fg = e.searchFg
-						matchForAnotherN--
-					} else if len(e.searchTerm) > 0 && letter == searchTermRunes[0] {
-						// Potential search highlight match
-						length := len([]rune(e.searchTerm))
-						counter := 0
-						match := true
-						for i := characterIndex; i < (characterIndex + length); i++ {
-							if i >= len(charactersAndAttributes) {
-								match = false
-								break
-							}
-							ca2 := charactersAndAttributes[i]
-							if ca2.R != []rune(e.searchTerm)[counter] {
-								// mismatch, not a hit
-								match = false
-								break
-							}
-							counter++
-						}
-						// match?
-						if match {
-							fg = e.searchFg
-							matchForAnotherN = length - 1
-						}
-					}
-					if letter == '\t' {
-						c.Write(uint(cx+counter), uint(cy+y), fg, e.bg, tabString)
-						if e.DrawMode() {
-							counter++
-						} else {
-							counter += e.spacesPerTab
-						}
-					} else {
-						c.WriteRune(uint(cx+counter), uint(cy+y), fg, e.bg, letter)
-						counter++
-					}
-				}
-			}
-		} else {
-			// Output a regular line
-			c.Write(uint(cx+counter), uint(cy+y), e.fg, e.bg, screenLine)
-			counter += len([]rune(screenLine))
-		}
-		//length := len([]rune(screenLine)) + strings.Count(screenLine, "\t")*(e.spacesPerTab-1)
+		// Output a regular line
+		c.Write(uint(cx+counter), uint(cy+y), e.fg, e.bg, screenLine)
+		counter += len([]rune(screenLine))
 		// Fill the rest of the line on the canvas with "blanks"
 		for x := counter; x < w; x++ {
 			c.WriteRune(uint(cx+x), uint(cy+y), e.fg, e.bg, ' ')
@@ -1047,16 +969,6 @@ func (e *Editor) SetColors(fg, bg vt100.AttributeColor) {
 // WordCount returns the number of spaces in the text + 1
 func (e *Editor) WordCount() int {
 	return len(strings.Fields(e.String()))
-}
-
-// ToggleHighlight toggles syntax highlighting
-func (e *Editor) ToggleHighlight() {
-	e.syntaxHighlight = !e.syntaxHighlight
-}
-
-// SetHighlight enables or disables syntax highlighting
-func (e *Editor) SetHighlight(syntaxHighlight bool) {
-	e.syntaxHighlight = syntaxHighlight
 }
 
 // SetLine will fill the given line index with the given string.
@@ -1805,7 +1717,6 @@ func (e *Editor) DrawLines(c *vt100.Canvas, respectOffset, redraw bool) {
 func (e *Editor) FullResetRedraw(c *vt100.Canvas, status *StatusBar) *vt100.Canvas {
 	savePos := e.pos
 	status.ClearAll(c)
-	e.SetSearchTerm("", c, status)
 	vt100.Close()
 	vt100.Reset()
 	vt100.Clear()

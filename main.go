@@ -13,7 +13,6 @@ import (
 	"unicode"
 
 	"github.com/atotto/clipboard"
-	"github.com/xyproto/syntax"
 	"github.com/xyproto/vt100"
 )
 
@@ -27,30 +26,13 @@ var (
 func main() {
 	var (
 		// Color scheme for the "text edit" mode
-		defaultEditorForeground      = vt100.LightGreen // for when syntax highlighting is not in use
+		defaultEditorForeground      = vt100.LightGreen
 		defaultEditorBackground      = vt100.BackgroundDefault
 		defaultStatusForeground      = vt100.White
 		defaultStatusBackground      = vt100.BackgroundBlack
 		defaultStatusErrorForeground = vt100.LightRed
 		defaultStatusErrorBackground = vt100.BackgroundDefault
 		defaultEditorSearchHighlight = vt100.LightMagenta
-		defaultEditorHighlightTheme  = syntax.TextConfig{
-			String:        "lightyellow",
-			Keyword:       "lightred",
-			Comment:       "gray",
-			Type:          "lightblue",
-			Literal:       "lightgreen",
-			Punctuation:   "lightblue",
-			Plaintext:     "lightgreen",
-			Tag:           "lightgreen",
-			TextTag:       "lightgreen",
-			TextAttrName:  "lightgreen",
-			TextAttrValue: "lightgreen",
-			Decimal:       "white",
-			AndOr:         "lightyellow",
-			Star:          "lightyellow",
-			Whitespace:    "",
-		}
 
 		versionFlag = flag.Bool("version", false, "show version information")
 		helpFlag    = flag.Bool("help", false, "show simple help")
@@ -83,9 +65,6 @@ Hotkeys
 
 ctrl-q     to quit
 ctrl-s     to save
-ctrl-w     to format the current file with "go fmt" or "clang-format"
-           if in markdown mode: toggle checkboxes
-		   if in git mode: cycle git interactive rebase keywords
 ctrl-a     go to start of line, then start of text and then the previous line
 ctrl-e     go to end of line and then the next line
 ctrl-p     to scroll up 10 lines
@@ -93,20 +72,13 @@ ctrl-n     to scroll down 10 lines or go to the next match if a search is active
 ctrl-k     to delete characters to the end of the line, then delete the line
 ctrl-g     to toggle filename/line/column/unicode/word count status display
 ctrl-d     to delete a single character
-ctrl-t     to toggle syntax highlighting
-ctrl-o     to toggle text or draw mode
 ctrl-x     to cut the current line
 ctrl-c     to copy the current line
 ctrl-v     to paste the current line
-ctrl-b     to bookmark the current line
-ctrl-j     to jump to the bookmark
 ctrl-u     to undo
 ctrl-l     to jump to a specific line
-ctrl-f     to search for a string
 esc        to redraw the screen and clear the last search
-ctrl-space to build Go, C++, word wrap
-ctrl-r     to render the current text to a PDF document
-ctrl-\     to toggle single-line comments for a block of code
+ctrl-space to export to the other image format
 ctrl-~     to save and quit + clear the terminal
 
 Set NO_COLOR=1 to disable colors.
@@ -148,7 +120,7 @@ Set NO_COLOR=1 to disable colors.
 	c.ShowCursor()
 
 	// scroll 10 lines at a time, no word wrap
-	e := NewEditor(spacesPerTab, defaultEditorForeground, defaultEditorBackground, false, true, 10, defaultEditorSearchHighlight, defaultEditorHighlightTheme, mode)
+	e := NewEditor(spacesPerTab, defaultEditorForeground, defaultEditorBackground, true, 10, defaultEditorSearchHighlight, mode)
 
 	// Adjust the word wrap if the terminal is too narrow
 	w := int(c.Width())
@@ -205,8 +177,6 @@ Set NO_COLOR=1 to disable colors.
 			statusMessage += " (read only)"
 			// set the color to red when in read-only mode
 			e.fg = vt100.Red
-			// disable syntax highlighting, to make it clear that the text is red
-			e.syntaxHighlight = false
 			// do a full reset and redraw
 			c = e.FullResetRedraw(c, status)
 			// draw the editor lines again
@@ -241,15 +211,6 @@ Set NO_COLOR=1 to disable colors.
 	}
 
 	// The editing mode is decided at this point
-
-	// If the file starts with a hash bang, enable syntax highlighting
-	if strings.HasPrefix(strings.TrimSpace(e.Line(0)), "#!") {
-		// Enable styntax highlighting and redraw
-		e.syntaxHighlight = true
-		e.bg = defaultEditorBackground
-		// Now do a full reset/redraw
-		c = e.FullResetRedraw(c, status)
-	}
 
 	// Undo buffer with room for 8192 actions
 	undo := NewUndo(8192)
@@ -433,22 +394,17 @@ Set NO_COLOR=1 to disable colors.
 			}
 			e.redrawCursor = true
 		case "c:14": // ctrl-n, scroll down or jump to next match
-			if e.SearchTerm() != "" {
-				// Go to next match
-				e.GoToNextMatch(c, status)
-			} else {
-				// Scroll down
-				e.redraw = e.ScrollDown(c, status, e.pos.scrollSpeed)
-				// If e.redraw is false, the end of file is reached
-				if !e.redraw {
-					status.Clear(c)
-					status.SetMessage("EOF")
-					status.Show(c, e)
-				}
-				e.redrawCursor = true
-				if !e.DrawMode() && e.AfterLineScreenContents() {
-					e.End()
-				}
+			// Scroll down
+			e.redraw = e.ScrollDown(c, status, e.pos.scrollSpeed)
+			// If e.redraw is false, the end of file is reached
+			if !e.redraw {
+				status.Clear(c)
+				status.SetMessage("EOF")
+				status.Show(c, e)
+			}
+			e.redrawCursor = true
+			if !e.DrawMode() && e.AfterLineScreenContents() {
+				e.End()
 			}
 		case "c:16": // ctrl-p, scroll up
 			e.redraw = e.ScrollUp(c, status, e.pos.scrollSpeed)
