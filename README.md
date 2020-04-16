@@ -1,10 +1,6 @@
 # favicon [![Build Status](https://travis-ci.com/xyproto/favicon.svg?branch=master)](https://travis-ci.com/xyproto/o) [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/o)](https://goreportcard.com/report/github.com/xyproto/o) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/o/master/LICENSE)
 
-`o` is a small and fast text editor that is limited to the VT100 standard.
-
-It's a good fit for writing git commit messages, using `EDITOR=o git commit`.
-
-For a more feature complete editor that is also written in Go, check out [micro](https://github.com/zyedidia/micro).
+Edit and create `favicon.ico` and `favicon.png` images on the terminal.
 
 ## Packaging status
 
@@ -18,9 +14,7 @@ You can install `favicon` with Go 1.10 or later:
 
 ## Features and limitations
 
-* Edit `favicon.ico` and `favicon.png` images.
-* Will only save 16-color graysacle images.
-* Only supports vt100 compatible terminals.
+* Will only save as 16-color graysacle images.
 
 ## Hotkeys
 
