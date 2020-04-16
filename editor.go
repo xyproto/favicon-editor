@@ -24,21 +24,18 @@ type Mode int
 
 // Editor represents the contents and editor settings, but not settings related to the viewport or scrolling
 type Editor struct {
-	lines            map[int][]rune       // the contents of the current document
-	changed          bool                 // has the contents changed, since last save?
-	fg               vt100.AttributeColor // default foreground color
-	bg               vt100.AttributeColor // default background color
-	spacesPerTab     int                  // how many spaces per tab character
-	drawMode         bool                 // text or draw mode (for ASCII graphics)?
-	pos              Position             // the current cursor and scroll position
-	searchTerm       string               // for marking found instances
-	searchFg         vt100.AttributeColor // search highlight color
-	redraw           bool                 // if the contents should be redrawn in the next loop
-	redrawCursor     bool                 // if the cursor should be moved to the location it is supposed to be
-	gitColor         vt100.AttributeColor // git commit message color
-	lineBeforeSearch int                  // save the current line when jumping between search results
-	wordWrapAt       int                  // set to 80 or 100 to trigger word wrap when typing to that column
-	mode             Mode                 // a filetype mode, like for git or markdown
+	lines        map[int][]rune       // the contents of the current document
+	changed      bool                 // has the contents changed, since last save?
+	fg           vt100.AttributeColor // default foreground color
+	bg           vt100.AttributeColor // default background color
+	drawMode     bool                 // text or draw mode (for ASCII graphics)?
+	pos          Position             // the current cursor and scroll position
+	searchFg     vt100.AttributeColor // search highlight color
+	redraw       bool                 // if the contents should be redrawn in the next loop
+	redrawCursor bool                 // if the cursor should be moved to the location it is supposed to be
+	gitColor     vt100.AttributeColor // git commit message color
+	wordWrapAt   int                  // set to 80 or 100 to trigger word wrap when typing to that column
+	mode         Mode                 // a filetype mode, like for git or markdown
 }
 
 // NewEditor takes:
@@ -46,12 +43,11 @@ type Editor struct {
 // * foreground color attributes
 // * background color attributes
 // * if "insert mode" is enabled (as opposed to "draw mode")
-func NewEditor(spacesPerTab int, fg, bg vt100.AttributeColor, textEditMode bool, scrollSpeed int, searchFg vt100.AttributeColor, mode Mode) *Editor {
+func NewEditor(fg, bg vt100.AttributeColor, textEditMode bool, scrollSpeed int, searchFg vt100.AttributeColor, mode Mode) *Editor {
 	e := &Editor{}
 	e.lines = make(map[int][]rune)
 	e.fg = fg
 	e.bg = bg
-	e.spacesPerTab = spacesPerTab
 	e.drawMode = !textEditMode
 	p := NewPosition(scrollSpeed)
 	e.pos = *p
@@ -67,7 +63,7 @@ func NewEditor(spacesPerTab int, fg, bg vt100.AttributeColor, textEditMode bool,
 // search results magenta and use a blank mode
 // then set the word wrap limit at the given column width.
 func NewSimpleEditor(wordWrapLimit int) *Editor {
-	e := NewEditor(4, vt100.White, vt100.Black, true, 1, vt100.Magenta, modeBlank)
+	e := NewEditor(vt100.White, vt100.Black, true, 1, vt100.Magenta, modeBlank)
 	e.wordWrapAt = wordWrapLimit
 	return e
 }
@@ -78,17 +74,6 @@ func (e *Editor) setLightTheme() {
 	e.bg = vt100.Gray
 	e.searchFg = vt100.Red
 	e.gitColor = vt100.Blue
-
-	// Markdown, switch light colors to darker ones
-	headerTextColor = vt100.Blue
-	textColor = vt100.Default
-	listTextColor = vt100.Default
-	imageColor = vt100.Green
-	boldColor = vt100.Blue
-	xColor = vt100.Blue
-	listCodeColor = vt100.Red
-	codeColor = vt100.Red
-	codeBlockColor = vt100.Red
 }
 
 // CopyLines will create a new map[int][]rune struct that is the copy of all the lines in the editor
@@ -186,15 +171,10 @@ func (e *Editor) LastScreenPosition(n int) int {
 
 // FirstScreenPosition returns the first X index for this line, that is not whitespace.
 func (e *Editor) FirstScreenPosition(n int) int {
-	spacesPerTab := 1
 	counter := 0
 	for _, r := range e.Line(n) {
 		if unicode.IsSpace(r) {
-			if r == '\t' {
-				counter += spacesPerTab
-			} else {
-				counter++
-			}
+			counter++
 			continue
 		} else {
 			break
@@ -899,19 +879,15 @@ func (e *Editor) DataX() (int, error) {
 	found := false
 	dataX := 0
 	runeCounter := 0
-	for _, r := range e.lines[dataY] {
+	for range e.lines[dataY] {
 		// When we reached the correct screen position, use i as the data position
 		if screenCounter == e.pos.sx {
 			dataX = runeCounter
 			found = true
 			break
 		}
-		// Increase the counter, based on the current rune
-		if r == '\t' {
-			screenCounter += e.spacesPerTab
-		} else {
-			screenCounter++
-		}
+		// Increase the counter
+		screenCounter++
 		runeCounter++
 	}
 	if !found {
@@ -956,19 +932,6 @@ func (e *Editor) insertBelow(y int, r rune) {
 		// The next line exists, but is of length 0, should not happen, just replace it
 		e.lines[y+1] = []rune{r}
 	}
-}
-
-// popRune returns a slice of runes, with the last one removed
-func popRune(rs []rune) []rune {
-	if len(rs) == 0 {
-		return rs
-	}
-	return rs[:len(rs)-1]
-}
-
-// insertRune returns a slice of runes, with the given rune inserted at the front
-func insertRune(rs []rune, r rune) []rune {
-	return append([]rune{r}, rs...)
 }
 
 // InsertRune will insert a rune at the current data position, with word wrap
@@ -1120,7 +1083,6 @@ func (e *Editor) InsertRune(c *vt100.Canvas, r rune) {
 	}
 	e.TrimRight(y)
 	e.MakeConsistent()
-	return
 }
 
 // InsertString will insert a string at the current data position.
@@ -1378,14 +1340,6 @@ func (e *Editor) AfterLineScreenContentsPlusOne() bool {
 func (e *Editor) WriteRune(c *vt100.Canvas) {
 	if c != nil {
 		c.WriteRune(uint(e.pos.sx), uint(e.pos.sy), e.fg, e.bg, e.Rune())
-	}
-}
-
-// WriteTab writes spaces when there is a tab character, to the canvas
-func (e *Editor) WriteTab(c *vt100.Canvas) {
-	spacesPerTab := 1
-	for x := e.pos.sx; x < e.pos.sx+spacesPerTab; x++ {
-		c.WriteRune(uint(x), uint(e.pos.sy), e.fg, e.bg, ' ')
 	}
 }
 

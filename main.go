@@ -39,8 +39,6 @@ func main() {
 
 		clearOnQuit bool // clear the terminal when quitting, or not
 
-		spacesPerTab = 4 // default spaces per tab
-
 		mode Mode // an "enum"/int signalling if this file should be in git mode, markdown mode etc
 	)
 
@@ -113,7 +111,7 @@ Set NO_COLOR=1 to disable colors.
 	c.ShowCursor()
 
 	// scroll 10 lines at a time, no word wrap
-	e := NewEditor(spacesPerTab, defaultEditorForeground, defaultEditorBackground, true, 10, defaultEditorSearchHighlight, mode)
+	e := NewEditor(defaultEditorForeground, defaultEditorBackground, true, 10, defaultEditorSearchHighlight, mode)
 
 	// Adjust the word wrap if the terminal is too narrow
 	w := int(c.Width())

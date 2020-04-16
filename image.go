@@ -191,7 +191,7 @@ func ReadFavicon(filename string, blank, PNG bool) (Mode, []byte, string, error)
 // If asOther is true, .png images are written as .ico and the other way around
 func WriteFavicon(mode Mode, text, filename string, asOther bool) error {
 	if mode != modeGray4 {
-		return errors.New("Saving .ico files is only implemented for 4-bit grayscale images")
+		return errors.New("saving .ico files is only implemented for 4-bit grayscale images")
 	}
 
 	var (
