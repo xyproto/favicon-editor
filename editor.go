@@ -58,16 +58,6 @@ func NewEditor(fg, bg vt100.AttributeColor, textEditMode bool, scrollSpeed int, 
 	return e
 }
 
-// NewSimpleEditor return a new simple editor, where the settings are 4 spaces per tab, white text on black background,
-// text edit mode (as opposed to ASCII draw mode), scroll 1 line at a time, color
-// search results magenta and use a blank mode
-// then set the word wrap limit at the given column width.
-func NewSimpleEditor(wordWrapLimit int) *Editor {
-	e := NewEditor(vt100.White, vt100.Black, true, 1, vt100.Magenta, modeBlank)
-	e.wordWrapAt = wordWrapLimit
-	return e
-}
-
 // setLightTheme sets a theme suitable for white backgrounds
 func (e *Editor) setLightTheme() {
 	e.fg = vt100.Black
