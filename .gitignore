@@ -1,8 +1,4 @@
-o
-hai
-HAI
-hai.*
-o*.p*
+favicon
 *.bak
 *.swp
 *.tmp
@@ -16,7 +12,5 @@ test.*
 *.log
 *.tex
 .vscode/
-o.html
 manpage.1
 *_go.pdf
-favicon.*
