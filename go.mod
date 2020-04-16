@@ -1,6 +1,6 @@
-module github.com/xyproto/o
+module github.com/xyproto/favicon
 
-go 1.10
+go 1.14
 
 require (
 	github.com/atotto/clipboard v0.1.2
