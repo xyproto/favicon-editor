@@ -106,6 +106,11 @@ Set NO_COLOR=1 to disable colors.
 	defer tty.Close()
 	vt100.Init()
 
+	// Check that the file is an .ico or .png image
+	if !strings.HasSuffix(filename, ".png") && !strings.HasSuffix(filename, ".ico") {
+		quitError(tty, errors.New(filename+" must be an .ico or a .png file"))
+	}
+
 	// Create a Canvas for drawing onto the terminal
 	c := vt100.NewCanvas()
 	c.ShowCursor()
