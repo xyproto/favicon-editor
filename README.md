@@ -1,4 +1,4 @@
-# favicon [![Build Status](https://travis-ci.com/xyproto/favicon.svg?branch=master)](https://travis-ci.com/xyproto/o) [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/o)](https://goreportcard.com/report/github.com/xyproto/o) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/o/master/LICENSE)
+# favicon [![Build Status](https://travis-ci.com/xyproto/favicon.svg?branch=master)](https://travis-ci.com/xyproto/favicon) [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/favicon)](https://goreportcard.com/report/github.com/xyproto/favicon) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/favicon/master/LICENSE)
 
 Edit and create `favicon.ico` and `favicon.png` images on the terminal.
 
