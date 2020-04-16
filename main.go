@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -60,11 +57,8 @@ func main() {
 
 		statusDuration = 2700 * time.Millisecond
 
-		copyLine   string   // for the cut/copy/paste functionality
-		bookmark   Position // for the bookmark/jump functionality
-		statusMode bool     // if information should be shown at the bottom
-
-		firstLetterSinceStart string
+		copyLine   string // for the cut/copy/paste functionality
+		statusMode bool   // if information should be shown at the bottom
 
 		locationHistory map[string]int // remember where we were in each absolute filename
 
@@ -140,49 +134,6 @@ Set NO_COLOR=1 to disable colors.
 
 	baseFilename := filepath.Base(filename)
 
-	// Check if we should be in a particular mode for a particular type of file
-	switch {
-	case baseFilename == "COMMIT_EDITMSG" ||
-		baseFilename == "MERGE_MSG" ||
-		(strings.HasPrefix(baseFilename, "git-") &&
-			!strings.Contains(baseFilename, ".") &&
-			strings.Count(baseFilename, "-") >= 2):
-		// Git mode
-		mode = modeGit
-	case strings.HasSuffix(baseFilename, ".md"):
-		// Markdown mode
-		mode = modeMarkdown
-	case strings.HasSuffix(baseFilename, ".adoc") || strings.HasSuffix(baseFilename, ".rst") || strings.HasSuffix(baseFilename, ".scdoc") || strings.HasSuffix(baseFilename, ".scd"):
-		// Markdown-like syntax highlighting
-		// TODO: Introduce a separate mode for these.
-		mode = modeMarkdown
-	case strings.HasSuffix(baseFilename, ".sh") || strings.HasSuffix(baseFilename, ".bash") || baseFilename == "PKGBUILD":
-		mode = modeShell
-	case strings.HasSuffix(baseFilename, ".yml") || strings.HasSuffix(baseFilename, ".toml"):
-		mode = modeYml
-	case baseFilename == "Makefile" || baseFilename == "makefile" || baseFilename == "GNUmakefile":
-		mode = modeMakefile
-	}
-
-	// Check if we should enable syntax highlighting by default
-	syntaxHighlight := mode == modeGit || baseFilename == "config" || baseFilename == "PKGBUILD" || baseFilename == "BUILD" || baseFilename == "WORKSPACE" || strings.Contains(baseFilename, ".") || strings.HasSuffix(baseFilename, "file") // Makefile, Dockerfile, Jenkinsfile, Vagrantfile
-
-	// Per-language adjustments to highlighting of keywords
-	if !strings.HasSuffix(baseFilename, ".go") {
-		delete(syntax.Keywords, "build")
-		delete(syntax.Keywords, "package")
-	}
-	delete(syntax.Keywords, "my")
-
-	// Additional per-mode considerations
-	if mode == modeGit {
-		clearOnQuit = true
-	} else if mode == modeShell || mode == modeYml {
-		spacesPerTab = 2
-	} else if mode == modeMakefile {
-		spacesPerTab = 1
-	}
-
 	// Initialize the terminal
 	tty, err := vt100.NewTTY()
 	if err != nil {
@@ -197,15 +148,12 @@ Set NO_COLOR=1 to disable colors.
 	c.ShowCursor()
 
 	// scroll 10 lines at a time, no word wrap
-	e := NewEditor(spacesPerTab, defaultEditorForeground, defaultEditorBackground, syntaxHighlight, true, 10, defaultEditorSearchHighlight, defaultEditorHighlightTheme, mode)
+	e := NewEditor(spacesPerTab, defaultEditorForeground, defaultEditorBackground, false, true, 10, defaultEditorSearchHighlight, defaultEditorHighlightTheme, mode)
 
-	// For non-highlighted files, adjust the word wrap
-	if !syntaxHighlight {
-		// Adjust the word wrap if the terminal is too narrow
-		w := int(c.Width())
-		if w < e.wordWrapAt {
-			e.wordWrapAt = w
-		}
+	// Adjust the word wrap if the terminal is too narrow
+	w := int(c.Width())
+	if w < e.wordWrapAt {
+		e.wordWrapAt = w
 	}
 
 	// Use a theme for light backgrounds if XTERM_VERSION is set,
@@ -294,19 +242,6 @@ Set NO_COLOR=1 to disable colors.
 
 	// The editing mode is decided at this point
 
-	// If we're editing a git commit message, add a newline and enable word-wrap at 80
-	if mode == modeGit {
-		e.gitColor = vt100.LightGreen
-		status.fg = vt100.LightBlue
-		status.bg = vt100.BackgroundDefault
-		if baseFilename == "MERGE_MSG" {
-			e.InsertLineBelow()
-		} else if e.EmptyLine() {
-			e.InsertLineBelow()
-		}
-		e.wordWrapAt = 80
-	}
-
 	// If the file starts with a hash bang, enable syntax highlighting
 	if strings.HasPrefix(strings.TrimSpace(e.Line(0)), "#!") {
 		// Enable styntax highlighting and redraw
@@ -341,7 +276,7 @@ Set NO_COLOR=1 to disable colors.
 		e.GoToLineNumber(lineNumber, c, status, false)
 		e.redraw = true
 		e.redrawCursor = true
-	} else if recordedLineNumber, ok := locationHistory[absFilename]; ok && mode != modeGit {
+	} else if recordedLineNumber, ok := locationHistory[absFilename]; ok {
 		// If this filename exists in the location history, jump there
 		lineNumber = recordedLineNumber
 		e.GoToLineNumber(lineNumber, c, status, true)
@@ -374,9 +309,6 @@ Set NO_COLOR=1 to disable colors.
 	var (
 		quit        bool
 		previousKey string
-
-		// Used for vi-compatible "O"-mode at start
-		dropO bool
 	)
 
 	for !quit {
@@ -384,123 +316,6 @@ Set NO_COLOR=1 to disable colors.
 		switch key {
 		case "c:17": // ctrl-q, quit
 			quit = true
-		case "c:23": // ctrl-w, format (or if in git mode, cycle interactive rebase keywords)
-			undo.Snapshot(e)
-
-			// Cycle git rebase keywords
-			if line := e.CurrentLine(); mode == modeGit && hasAnyPrefixWord(line, rebasePrefixes) {
-				newLine := nextGitRebaseKeyword(line)
-				e.SetLine(e.DataY(), newLine)
-				e.redraw = true
-				e.redrawCursor = true
-				break
-			}
-
-			// Toggle Markdown checkboxes
-			if line := e.CurrentLine(); mode == modeMarkdown && hasAnyPrefixWord(strings.TrimSpace(line), checkboxPrefixes) {
-				if strings.Contains(line, "[ ]") {
-					e.SetLine(e.DataY(), strings.Replace(line, "[ ]", "[x]", 1))
-					e.redraw = true
-				} else if strings.Contains(line, "[x]") {
-					e.SetLine(e.DataY(), strings.Replace(line, "[x]", "[ ]", 1))
-					e.redraw = true
-				} else if strings.Contains(line, "[X]") {
-					e.SetLine(e.DataY(), strings.Replace(line, "[X]", "[ ]", 1))
-					e.redraw = true
-				}
-				e.redrawCursor = e.redraw
-				break
-			}
-
-			// Not in git mode, format Go or C++ code with goimports or clang-format
-			// Map from formatting command to a list of file extensions
-			format := map[*exec.Cmd][]string{
-				exec.Command("goimports", "-w", "--"):                                             {".go"},
-				exec.Command("clang-format", "-fallback-style=WebKit", "-style=file", "-i", "--"): {".cpp", ".cc", ".cxx", ".h", ".hpp", ".c++", ".h++", ".c"},
-				exec.Command("zig", "fmt"):                                                        {".zig"},
-				exec.Command("v", "fmt"):                                                          {".v"},
-				exec.Command("rustfmt"):                                                           {".rs"},
-			}
-			formatted := false
-		OUT:
-			for cmd, extensions := range format {
-				for _, ext := range extensions {
-					if strings.HasSuffix(filename, ext) {
-						// Use the temporary directory defined in TMPDIR, with fallback to /tmp
-						tempdir := os.Getenv("TMPDIR")
-						if tempdir == "" {
-							tempdir = "/tmp"
-						}
-						if f, err := ioutil.TempFile(tempdir, "__o*"+ext); err == nil {
-							// no error, everything is fine
-							tempFilename := f.Name()
-							err := e.Save(&tempFilename, true, false)
-							if err == nil {
-								// Format the temporary file
-								cmd.Args = append(cmd.Args, tempFilename)
-								output, err := cmd.CombinedOutput()
-								if err != nil {
-									// Only grab the first error message
-									errorMessage := strings.TrimSpace(string(output))
-									if strings.Count(errorMessage, "\n") > 0 {
-										errorMessage = strings.TrimSpace(strings.SplitN(errorMessage, "\n", 2)[0])
-									}
-									// TODO: This error never shows up. Fix it.
-									status.SetMessage("Failed to format code: " + errorMessage)
-									if strings.Count(errorMessage, ":") >= 3 {
-										fields := strings.Split(errorMessage, ":")
-										// Go To Y:X, if available
-										var foundY int
-										if y, err := strconv.Atoi(fields[1]); err == nil { // no error
-											foundY = y - 1
-											e.redraw = e.GoTo(foundY, c, status)
-											foundX := -1
-											if x, err := strconv.Atoi(fields[2]); err == nil { // no error
-												foundX = x - 1
-											}
-											if foundX != -1 {
-												tabs := strings.Count(e.Line(foundY), "\t")
-												e.pos.sx = foundX + (tabs * (e.spacesPerTab - 1))
-												e.Center(c)
-											}
-										}
-										e.redrawCursor = true
-									}
-									status.Show(c, e)
-									break OUT
-								} else {
-									if _, err := e.Load(c, tty, tempFilename); err != nil {
-										status.ClearAll(c)
-										status.SetMessage(err.Error())
-										status.Show(c, e)
-									}
-									// Mark the data as changed, despite just having loaded a file
-									e.changed = true
-									formatted = true
-									e.redrawCursor = true
-								}
-								// Try to remove the temporary file regardless if "goimports -w" worked out or not
-								_ = os.Remove(tempFilename)
-							}
-							// Try to close the file. f.Close() checks if f is nil before closing.
-							_ = f.Close()
-							e.redraw = true
-							e.redrawCursor = true
-						}
-						break OUT
-					}
-				}
-			}
-			if mode != modeGit && !formatted {
-				// Check if at least one line is longer than the word wrap limit first
-				// word wrap at the current width - 5, with an allowed overshoot of 5 runes
-				if e.WrapAllLinesAt(e.wordWrapAt-5, 5) {
-					e.redraw = true
-					e.redrawCursor = true
-				}
-			}
-		case "c:6": // ctrl-f, search for a string
-			e.SearchMode(c, status, tty, true)
 		case "c:0": // ctrl-space, build source code to executable, word wrap, convert to PDF or write to PNG, depending on the mode
 			if strings.HasSuffix(baseFilename, ".ico") {
 				// Save .ico as .png
@@ -530,307 +345,13 @@ Set NO_COLOR=1 to disable colors.
 					status.Show(c, e)
 				}
 				break // from case
-			} else if strings.HasSuffix(baseFilename, ".scd") || strings.HasSuffix(baseFilename, ".scdoc") {
-				scdoc := exec.Command("/usr/bin/scdoc")
-
-				// Place the current contents in a buffer, and feed it to stdin to the command
-				var buf bytes.Buffer
-				buf.WriteString(e.String())
-				scdoc.Stdin = &buf
-
-				// Create a new file and use it as stdout
-				manpageFile, err := os.Create("out.1")
-				if err != nil {
-					statusMessage = err.Error()
-					status.ClearAll(c)
-					status.SetMessage(statusMessage)
-					status.Show(c, e)
-					break // from case
-				}
-				scdoc.Stdout = manpageFile
-
-				var errBuf bytes.Buffer
-				scdoc.Stderr = &errBuf
-
-				// Run scdoc
-				if err := scdoc.Run(); err != nil {
-					statusMessage = strings.TrimSpace(errBuf.String())
-					status.ClearAll(c)
-					status.SetMessage(statusMessage)
-					status.Show(c, e)
-					break // from case
-				}
-
-				statusMessage = "Saved out.1"
-				status.ClearAll(c)
-				status.SetMessage(statusMessage)
-				status.Show(c, e)
-				break // from case
-
-			} else if strings.HasSuffix(baseFilename, ".adoc") {
-				asciidoctor := exec.Command("/usr/bin/asciidoctor", "-b", "manpage", "-o", "out.1", filename)
-				if err := asciidoctor.Run(); err != nil {
-					statusMessage = err.Error()
-					status.ClearAll(c)
-					status.SetMessage(statusMessage)
-					status.Show(c, e)
-					break // from case
-				}
-				statusMessage = "Saved out.1"
-				status.ClearAll(c)
-				status.SetMessage(statusMessage)
-				status.Show(c, e)
-				break // from case
-				// Is this a Markdown file? Save to PDF, either by using pandoc or by writing the text file directly
-			} else if pandocPath := which("pandoc"); mode == modeMarkdown && strings.HasSuffix(baseFilename, ".md") && pandocPath != "" {
-
-				go func() {
-					pdfFilename := strings.Replace(baseFilename, ".", "_", -1) + ".pdf"
-
-					statusMessage := "Converting to PDF using Pandoc..."
-					status.SetMessage(statusMessage)
-					status.ShowNoTimeout(c, e)
-
-					tmpfn := "___o___.md"
-
-					if exists(tmpfn) {
-						statusMessage = tmpfn + " already exists, please remove it"
-						status.ClearAll(c)
-						status.SetMessage(statusMessage)
-						status.Show(c, e)
-						return // from goroutine
-					}
-
-					err := e.Save(&tmpfn, !e.DrawMode(), false)
-					if err != nil {
-						statusMessage = err.Error()
-						status.ClearAll(c)
-						status.SetMessage(statusMessage)
-						status.Show(c, e)
-						return // from goroutine
-					}
-
-					pandoc := exec.Command(pandocPath, "-N", "--toc", "-V", "geometry:a4paper", "-o", pdfFilename, tmpfn)
-					if err = pandoc.Run(); err != nil {
-						_ = os.Remove(tmpfn) // Try removing the temporary filename if pandoc fails
-						statusMessage = err.Error()
-						status.ClearAll(c)
-						status.SetMessage(statusMessage)
-						status.Show(c, e)
-						return // from goroutine
-					}
-
-					if err = os.Remove(tmpfn); err != nil {
-						statusMessage = err.Error()
-						status.ClearAll(c)
-						status.SetMessage(statusMessage)
-						status.Show(c, e)
-						return // from goroutine
-					}
-
-					statusMessage = "Saved " + pdfFilename
-					status.ClearAll(c)
-					status.SetMessage(statusMessage)
-					status.Show(c, e)
-				}()
-				break // from case
 			}
-
-			// Is this a .go, .cpp, .cc, .cxx, .h, .hpp, .c++, .h++, .c, .zig or .v file?
-
-			// Map from formatting command to a list of file extensions
-			build := map[*exec.Cmd][]string{
-				exec.Command("go", "build"):    {".go"},
-				exec.Command("cxx"):            {".cpp", ".cc", ".cxx", ".h", ".hpp", ".c++", ".h++", ".c"},
-				exec.Command("zig", "build"):   {".zig"},
-				exec.Command("v", filename):    {".v"},
-				exec.Command("cargo", "build"): {".rs"},
-			}
-			var foundExtensionToBuild bool
-		OUT2:
-			for cmd, extensions := range build {
-				for _, ext := range extensions {
-					if strings.HasSuffix(filename, ext) {
-						foundExtensionToBuild = true
-						status.ClearAll(c)
-						status.SetMessage("Building")
-						status.ShowNoTimeout(c, e)
-
-						// Save the current line location to file, for later
-						e.SaveLocation(absFilename, locationHistory)
-
-						// Use rustc instead of cargo if Cargo.toml is missing and the extension is .rs
-						if ext == ".rs" && (!exists("Cargo.toml") && !exists("../Cargo.toml")) {
-							cmd = exec.Command("rustc", filename)
-						} else if (ext == ".cc" || ext == ".h") && exists("BUILD.bazel") {
-							// Google-style C++ + Bazel projects
-							cmd = exec.Command("bazel", "build")
-						} else if ext == ".zig" && !exists("build.zig") {
-							// Just build the current file
-							cmd = exec.Command("zig", "build-exe", "-lc", filename)
-						}
-
-						output, err := cmd.CombinedOutput()
-						if err != nil || bytes.Contains(output, []byte("error:")) {
-							// Find the first error message
-							lines := strings.Split(string(output), "\n")
-							errorMessage := "Build error"
-							for _, line := range lines {
-								if strings.Contains(line, "error:") {
-									parts := strings.SplitN(line, "error:", 2)
-									errorMessage = parts[1]
-									break
-								}
-							}
-							status.ClearAll(c)
-							status.SetErrorMessage(errorMessage)
-							for i, line := range lines {
-								// Jump to the error location, for C++ and Go
-								if strings.Count(line, ":") >= 3 {
-									fields := strings.SplitN(line, ":", 4)
-
-									// Go to Y:X, if available
-									var foundY int
-									if y, err := strconv.Atoi(fields[1]); err == nil { // no error
-										foundY = y - 1
-										e.redraw = e.GoTo(foundY, c, status)
-										foundX := -1
-										if x, err := strconv.Atoi(fields[2]); err == nil { // no error
-											foundX = x - 1
-										}
-										if foundX != -1 {
-											tabs := strings.Count(e.Line(foundY), "\t")
-											e.pos.sx = foundX + (tabs * (e.spacesPerTab - 1))
-											e.Center(c)
-											// Use the error message as the status message
-											if len(fields) >= 4 {
-												status.ClearAll(c)
-												status.SetErrorMessage(strings.Join(fields[3:], " "))
-												status.Show(c, e)
-												break OUT2
-											}
-										}
-									}
-									e.redrawCursor = true
-									break
-								} else if (i-1) > 0 && (i-1) < len(lines) {
-									if msgLine := lines[i-1]; strings.Contains(line, " --> ") && strings.Count(line, ":") == 2 && strings.Count(msgLine, ":") >= 1 {
-										// Jump to the error location, for Rust
-										errorFields := strings.SplitN(msgLine, ":", 2)                  // Already checked for 2 colons
-										errorMessage := strings.TrimSpace(errorFields[1])               // There will always be 3 elements in errorFields, so [1] is fine
-										locationFields := strings.SplitN(line, ":", 3)                  // Already checked for 2 colons in line
-										filenameFields := strings.SplitN(locationFields[0], " --> ", 2) // [0] is fine, already checked for " ---> "
-										errorFilename := strings.TrimSpace(filenameFields[1])           // [1] is fine
-										if filename != errorFilename {
-											status.ClearAll(c)
-											status.SetMessage("Error in " + errorFilename + ": " + errorMessage)
-											status.Show(c, e)
-											break OUT2
-										}
-										errorY := locationFields[1]
-										errorX := locationFields[2]
-
-										// Go to Y:X, if available
-										var foundY int
-										if y, err := strconv.Atoi(errorY); err == nil { // no error
-											foundY = y - 1
-											e.redraw = e.GoTo(foundY, c, status)
-											foundX := -1
-											if x, err := strconv.Atoi(errorX); err == nil { // no error
-												foundX = x - 1
-											}
-											if foundX != -1 {
-												tabs := strings.Count(e.Line(foundY), "\t")
-												e.pos.sx = foundX + (tabs * (e.spacesPerTab - 1))
-												e.Center(c)
-												// Use the error message as the status message
-												if errorMessage != "" {
-													status.SetErrorMessage(errorMessage)
-													status.Show(c, e)
-													break OUT2
-												}
-											}
-										}
-										e.redrawCursor = true
-										break
-									}
-								}
-							}
-						} else {
-							status.ClearAll(c)
-							status.SetMessage("Build OK")
-							status.Show(c, e)
-						}
-						break OUT2
-					}
-				}
-			}
-			if !foundExtensionToBuild {
-				// Building this file extension is not implemented yet.
-				status.ClearAll(c)
-				// Just display the current time and word count.
-				statusMessage := fmt.Sprintf("%d words, %s", e.WordCount(), time.Now().Format("15:04")) // HH:MM
-				status.SetMessage(statusMessage)
-				status.Show(c, e)
-			}
-		case "c:18": // ctrl-r, render to PDF, or if in git mode, cycle rebase keywords
-
-			// Are we in git mode?
-			if line := e.CurrentLine(); mode == modeGit && hasAnyPrefixWord(line, rebasePrefixes) {
-				undo.Snapshot(e)
-				newLine := nextGitRebaseKeyword(line)
-				e.SetLine(e.DataY(), newLine)
-				e.redraw = true
-				e.redrawCursor = true
-				break
-			}
-
-			// Save the current text to .pdf directly (without using pandoc)
-
-			// Write to PDF in a goroutine
-			go func() {
-
-				pdfFilename := strings.Replace(baseFilename, ".", "_", -1) + ".pdf"
-
-				// Show a status message while writing
-				statusMessage := "Saving PDF..."
-				status.SetMessage(statusMessage)
-				status.ShowNoTimeout(c, e)
-
-				// TODO: Only overwrite if the previous PDF file was also rendered by "o".
-				_ = os.Remove(pdfFilename)
-				// Write the file
-				if err := e.SavePDF(filename, pdfFilename); err != nil {
-					statusMessage = err.Error()
-				} else {
-					statusMessage = "Saved " + pdfFilename
-				}
-				// Show a status message after writing
-				status.ClearAll(c)
-				status.SetMessage(statusMessage)
-				status.Show(c, e)
-			}()
-		case "c:28": // ctrl-\, toggle comment for this block
-			undo.Snapshot(e)
-			e.ToggleCommentBlock(c)
-			e.redraw = true
-			e.redrawCursor = true
-		case "c:15": // ctrl-o, toggle ASCII draw mode
-			e.ToggleDrawMode()
-			statusMessage := "Text mode"
-			if e.DrawMode() {
-				statusMessage = "Draw mode"
-			}
-			status.Clear(c)
+			// Building this file extension is not implemented yet.
+			status.ClearAll(c)
+			// Just display the current time and word count.
+			statusMessage := fmt.Sprintf("%d words, %s", e.WordCount(), time.Now().Format("15:04")) // HH:MM
 			status.SetMessage(statusMessage)
 			status.Show(c, e)
-		case "c:7": // ctrl-g, status mode
-			statusMode = !statusMode
-			if statusMode {
-				status.ShowLineColWordCount(c, e, filename)
-			} else {
-				status.ClearAll(c)
-			}
 		case "←": // left arrow
 			if !e.DrawMode() {
 				e.Prev(c)
@@ -935,24 +456,6 @@ Set NO_COLOR=1 to disable colors.
 			if !e.DrawMode() && e.AfterLineScreenContents() {
 				e.End()
 			}
-		case "c:20": // ctrl-t, toggle syntax highlighting or use the next git interactive rebase keyword
-			if line := e.CurrentLine(); mode == modeGit && hasAnyPrefixWord(line, []string{"p", "pick", "r", "reword", "e", "edit", "s", "squash", "f", "fixup", "x", "exec", "b", "break", "d", "drop", "l", "label", "t", "reset", "m", "merge"}) {
-				undo.Snapshot(e)
-				newLine := nextGitRebaseKeyword(line)
-				e.SetLine(e.DataY(), newLine)
-				e.redraw = true
-				e.redrawCursor = true
-				break
-			} else {
-				e.ToggleHighlight()
-				if e.syntaxHighlight {
-					e.bg = defaultEditorBackground
-				} else {
-					e.bg = vt100.BackgroundDefault
-				}
-			}
-			// Now do a full reset/redraw
-			fallthrough
 		case "c:27": // esc, clear search term, reset, clean and redraw
 			c = e.FullResetRedraw(c, status)
 		case " ": // space
@@ -1269,67 +772,9 @@ Set NO_COLOR=1 to disable colors.
 			// Prepare to redraw the text
 			e.redrawCursor = true
 			e.redraw = true
-		case "c:2": // ctrl-b, bookmark
-			bookmark = e.pos
-			status.SetMessage("Bookmarked line " + strconv.Itoa(e.LineNumber()))
-			status.Show(c, e)
-			e.redrawCursor = true
-		case "c:10": // ctrl-j, jump to bookmark
-			e.GoToPosition(c, status, bookmark)
-			// Do the redraw manually before showing the status message
-			e.DrawLines(c, true, false)
-			e.redraw = false
-			// Show the status message.
-			status.SetMessage("Jumped to bookmark at line " + strconv.Itoa(e.LineNumber()))
-			status.Show(c, e)
-			e.redrawCursor = true
-		case "/": // check if this is was the first pressed letter or not
-			if firstLetterSinceStart == "" {
-				// Set the first letter since start to something that will not trigger this branch any more.
-				firstLetterSinceStart = "x"
-				// If the first typed letter since starting this editor was '/', go straight to search mode.
-				e.SearchMode(c, status, tty, true)
-				// Case handled
-				break
-			}
-			// This was not the first pressed letter, continue handling this key in the default case
-			fallthrough
 		default:
 			if len([]rune(key)) > 0 && unicode.IsLetter([]rune(key)[0]) { // letter
 				undo.Snapshot(e)
-				// Check for if a special "first letter" has been pressed, which triggers vi-like behavior
-				if firstLetterSinceStart == "" {
-					firstLetterSinceStart = key
-					// If the first pressed key is "G" and this is not git mode, then invoke vi-compatible behavior and jump to the end
-					if key == "G" && (mode != modeGit) {
-						// Go to the end of the document
-						e.redraw = e.GoToLineNumber(e.Len(), c, status, true)
-						e.redrawCursor = true
-						firstLetterSinceStart = "x"
-						break
-					}
-				}
-				if firstLetterSinceStart == "O" {
-					// If the first typed letter since starting this editor was 'O', and this is also uppercase,
-					// then disregard the initial 'O'. This is to help vim-users.
-					dropO = true
-					// Set the first letter since start to something that will not trigger this branch any more.
-					firstLetterSinceStart = "x"
-					// ignore the O
-					break
-				}
-				// If the previous letter was an "O" and this letter is lowercase, invoke vi-compatibility for a short moment
-				if dropO {
-					// This is a one-time operation
-					dropO = false
-					// Lowercase? Type the O, since it was meant to be typed.
-					if len([]rune(key)) > 0 && unicode.IsLower([]rune(key)[0]) {
-						e.Prev(c)
-						e.SetRune('O')
-						e.WriteRune(c)
-						e.Next(c)
-					}
-				}
 				// Type the letter that was pressed
 				if len([]rune(key)) > 0 {
 					if !e.DrawMode() {
@@ -1409,8 +854,6 @@ Set NO_COLOR=1 to disable colors.
 		}
 		previousX = x
 		previousY = y
-		// The first letter was not O or /, which invokes special vi-compatible behavior
-		firstLetterSinceStart = "x"
 	}
 	// Save the current location in the location history and write it to file
 	e.SaveLocation(absFilename, locationHistory)

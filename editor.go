@@ -16,18 +16,11 @@ import (
 )
 
 const (
-	tabCharacter = "·" // Used when editing makfiles, for the \t character
-
 	// Mode "enum"
-	modeBlank    = iota
-	modeGit      // for git commits and interactive rebases
-	modeMarkdown // for Markdown (and asciidoctor and rst files)
-	modeMakefile // for Makefiles
-	modeShell    // for shell scripts and PKGBUILD files
-	modeYml      // for yml and toml files
-	modeGray4    // for 4-bit grayscale images
-	modeRGB      // for 8+8+8 bit RGB images
-	modeRGBA     // for 8+8+8+8 bit RGBA images
+	modeBlank = iota
+	modeGray4 // for 4-bit grayscale images
+	modeRGB   // for 8+8+8 bit RGB images
+	modeRGBA  // for 8+8+8+8 bit RGBA images
 )
 
 // Mode is a per-filetype mode, like for Markdown
@@ -74,11 +67,6 @@ func NewEditor(spacesPerTab int, fg, bg vt100.AttributeColor, syntaxHighlight, t
 	// If the file is not to be highlighted, set word wrap to 99 (0 to disable)
 	if !syntaxHighlight {
 		e.wordWrapAt = 99
-	}
-	if mode == modeGit {
-		// The subject should ideally be maximum 50 characters long, then the body of the
-		// git commit message can be 72 characters long. Because e-mail standards.
-		e.wordWrapAt = 72
 	}
 	e.mode = mode
 	return e
@@ -180,11 +168,7 @@ func (e *Editor) ScreenLine(n int) string {
 		}
 		tabSpace := "\t"
 		if !e.DrawMode() {
-			if e.mode == modeMakefile {
-				tabSpace = strings.Repeat(tabCharacter, e.spacesPerTab)
-			} else {
-				tabSpace = strings.Repeat("\t", e.spacesPerTab)
-			}
+			tabSpace = strings.Repeat("\t", e.spacesPerTab)
 		}
 		//return strings.ReplaceAll(sb.String(), "\t", tabSpace)
 		return strings.Replace(sb.String(), "\t", tabSpace, -1)
@@ -547,10 +531,6 @@ func (e *Editor) Save(filename *string, stripTrailingSpaces, asOther bool) error
 	}
 	// Mark the data as "not changed"
 	e.changed = false
-	// If this is in Makefile mode, replace mid-dot with tab
-	if e.mode == modeMakefile {
-		data = bytes.Replace(data, []byte(tabCharacter), []byte{'\t'}, -1)
-	}
 	// Write the data to file
 	return ioutil.WriteFile(*filename, data, 0664)
 }
@@ -578,11 +558,7 @@ func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error
 	o := textoutput.NewTextOutput(true, true)
 	tabString := " "
 	if !e.DrawMode() {
-		if e.mode == modeMakefile {
-			tabString = strings.Repeat(tabCharacter, e.spacesPerTab)
-		} else {
-			tabString = strings.Repeat(" ", e.spacesPerTab)
-		}
+		tabString = strings.Repeat(" ", e.spacesPerTab)
 	}
 	w := int(c.Width())
 	if fromline >= toline {
@@ -590,19 +566,6 @@ func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error
 	}
 	numlines := toline - fromline
 	offset := fromline
-	inCodeBlock := false // used when highlighting Markdown
-	// If in Markdown mode, figure out the current state of block quotes
-	if e.mode == modeMarkdown {
-		// Figure out if "fromline" is within a markdown code block or not
-		for i := 0; i < fromline; i++ {
-			// Check if the untrimmed line starts with ~~~ or ```
-			contents := e.Line(i)
-			if strings.HasPrefix(contents, "~~~") || strings.HasPrefix(contents, "```") {
-				// Toggle the flag for if we're in a code block or not
-				inCodeBlock = !inCodeBlock
-			}
-		}
-	}
 	noColor := os.Getenv("NO_COLOR") != ""
 	for y := 0; y < numlines; y++ {
 		counter := 0
