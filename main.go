@@ -42,8 +42,6 @@ func main() {
 		copyLine   string // for the cut/copy/paste functionality
 		statusMode bool   // if information should be shown at the bottom
 
-		locationHistory map[string]int // remember where we were in each absolute filename
-
 		clearOnQuit bool // clear the terminal when quitting, or not
 
 		spacesPerTab = 4 // default spaces per tab
@@ -87,7 +85,7 @@ Set NO_COLOR=1 to disable colors.
 		return
 	}
 
-	filename, lineNumber := FilenameAndLineNumber(flag.Arg(0), flag.Arg(1))
+	filename := flag.Arg(0)
 	if filename == "" {
 		fmt.Fprintln(os.Stderr, "Need a filename.")
 		os.Exit(1)
@@ -223,37 +221,8 @@ Set NO_COLOR=1 to disable colors.
 	previousX := 1
 	previousY := 1
 
-	// Find the absolute path to this filename
-	absFilename, err := filepath.Abs(filename)
-	if err != nil {
-		absFilename = filename
-	}
-
-	// Load the location history, if available
-	locationHistory = LoadLocationHistory(expandUser(locationHistoryFilename))
-
-	// Check if a line number was given on the command line
-	if lineNumber > 0 {
-		e.GoToLineNumber(lineNumber, c, status, false)
-		e.redraw = true
-		e.redrawCursor = true
-	} else if recordedLineNumber, ok := locationHistory[absFilename]; ok {
-		// If this filename exists in the location history, jump there
-		lineNumber = recordedLineNumber
-		e.GoToLineNumber(lineNumber, c, status, true)
-		e.redraw = true
-		e.redrawCursor = true
-	} else {
-		// Draw editor lines from line 0 to h onto the canvas at 0,0
-		e.DrawLines(c, false, false)
-		e.redraw = false
-	}
-
-	if e.redraw {
-		e.Center(c)
-		e.DrawLines(c, true, false)
-		e.redraw = false
-	}
+	// Draw editor lines from line 0 to h onto the canvas at 0,0
+	e.DrawLines(c, false, false)
 
 	status.SetMessage(statusMessage)
 	status.Show(c, e)
@@ -615,8 +584,6 @@ Set NO_COLOR=1 to disable colors.
 				if !e.DrawMode() && e.AfterLineScreenContents() {
 					e.End()
 				}
-				// Save the current location in the location history and write it to file
-				e.SaveLocation(absFilename, locationHistory)
 				// Status message
 				status.SetMessage("Saved " + filename)
 				status.Show(c, e)
@@ -811,8 +778,6 @@ Set NO_COLOR=1 to disable colors.
 		previousX = x
 		previousY = y
 	}
-	// Save the current location in the location history and write it to file
-	e.SaveLocation(absFilename, locationHistory)
 
 	// Clear all status bar messages
 	status.ClearAll(c)
