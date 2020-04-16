@@ -20,6 +20,7 @@ You can install `favicon` with Go 1.10 or later:
 
 * Edit `favicon.ico` and `favicon.png` images.
 * Will only save 16-color graysacle images.
+* Only supports vt100 compatible terminals.
 
 ## Hotkeys
 
