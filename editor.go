@@ -39,7 +39,6 @@ type Editor struct {
 }
 
 // NewEditor takes:
-// * the number of spaces per tab (typically 2, 4 or 8)
 // * foreground color attributes
 // * background color attributes
 // * if "insert mode" is enabled (as opposed to "draw mode")
@@ -140,9 +139,7 @@ func (e *Editor) ScreenLine(n int) string {
 		for _, r := range line {
 			sb.WriteRune(r)
 		}
-		tabSpace := "\t"
-		//return strings.ReplaceAll(sb.String(), "\t", tabSpace)
-		return strings.Replace(sb.String(), "\t", tabSpace, -1)
+		return sb.String()
 	}
 	return ""
 }
@@ -216,7 +213,6 @@ func (e *Editor) String() string {
 	for i := 0; i < e.Len(); i++ {
 		sb.WriteString(e.Line(i) + "\n")
 	}
-	//return strings.TrimRight(sb.String(), " \n\t\r")
 	return sb.String()
 }
 
@@ -389,7 +385,6 @@ func (e *Editor) TrimRight(n int) {
 
 // WriteLines will draw editor lines from "fromline" to and up to "toline" to the canvas, at cx, cy
 func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error {
-	tabString := " "
 	w := int(c.Width())
 	if fromline >= toline {
 		return errors.New("fromline >= toline in WriteLines")
@@ -398,8 +393,7 @@ func (e *Editor) WriteLines(c *vt100.Canvas, fromline, toline, cx, cy int) error
 	offset := fromline
 	for y := 0; y < numlines; y++ {
 		counter := 0
-		//line := strings.ReplaceAll(e.Line(y+offset), "\t", tabString)
-		line := strings.Replace(e.Line(y+offset), "\t", tabString, -1)
+		line := e.Line(y + offset)
 		screenLine := strings.TrimRightFunc(line, unicode.IsSpace)
 		if len([]rune(screenLine)) >= w {
 			screenLine = screenLine[:w]
