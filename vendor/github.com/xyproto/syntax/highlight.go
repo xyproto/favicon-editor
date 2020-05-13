@@ -34,6 +34,10 @@ const (
 	Decimal
 	AndOr
 	Star
+	Class
+	Private
+	Public
+	Protected
 )
 
 //go:generate gostringer -type=Kind
@@ -62,14 +66,18 @@ type TextConfig struct {
 	AndOr         string
 	Star          string
 	Whitespace    string
+	Class         string
+	Private       string
+	Public        string
+	Protected     string
 }
 
 // TextPrinter implements Printer interface and is used to produce
 // Text-based highligher
 type TextPrinter TextConfig
 
-// Class returns the set class for a given token Kind.
-func (c TextConfig) Class(kind Kind) string {
+// GetClass returns the set class for a given token Kind.
+func (c TextConfig) GetClass(kind Kind) string {
 	switch kind {
 	case String:
 		return c.String
@@ -99,6 +107,14 @@ func (c TextConfig) Class(kind Kind) string {
 		return c.AndOr
 	case Star:
 		return c.Star
+	case Class:
+		return c.Class
+	case Public:
+		return c.Public
+	case Private:
+		return c.Private
+	case Protected:
+		return c.Protected
 	}
 	return ""
 }
@@ -106,7 +122,7 @@ func (c TextConfig) Class(kind Kind) string {
 // Print is the function that emits highlighted source code using
 // <color>...<off> wrapper tags
 func (p TextPrinter) Print(w io.Writer, kind Kind, tokText string) error {
-	class := ((TextConfig)(p)).Class(kind)
+	class := ((TextConfig)(p)).GetClass(kind)
 	if class != "" {
 		_, err := w.Write([]byte(`<`))
 		if err != nil {
@@ -138,7 +154,7 @@ type Annotator interface {
 type TextAnnotator TextConfig
 
 func (a TextAnnotator) Annotate(start int, kind Kind, tokText string) (*annotate.Annotation, error) {
-	class := ((TextConfig)(a)).Class(kind)
+	class := ((TextConfig)(a)).GetClass(kind)
 	if class != "" {
 		left := []byte(`<`)
 		left = append(left, []byte(class)...)
@@ -173,14 +189,18 @@ var DefaultTextConfig = TextConfig{
 	AndOr:         "red",
 	Star:          "white",
 	Whitespace:    "",
+	Class:         "white",
+	Private:       "red",
+	Public:        "red",
+	Protected:     "red",
 }
 
-func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
+func Print(s *scanner.Scanner, w io.Writer, p Printer, assemblyMode bool) error {
 	tok := s.Scan()
 	inSingleLineComment := false
 	for tok != scanner.EOF {
 		tokText := s.TokenText()
-		err := p.Print(w, tokenKind(tok, tokText, &inSingleLineComment), tokText)
+		err := p.Print(w, tokenKind(tok, tokText, &inSingleLineComment, assemblyMode), tokText)
 		if err != nil {
 			return err
 		}
@@ -191,7 +211,7 @@ func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
 	return nil
 }
 
-func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
+func Annotate(src []byte, a Annotator, assemblyMode bool) (annotate.Annotations, error) {
 	var (
 		anns                annotate.Annotations
 		s                   = NewScanner(src)
@@ -201,7 +221,7 @@ func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
 	)
 	for tok != scanner.EOF {
 		tokText := s.TokenText()
-		ann, err := a.Annotate(read, tokenKind(tok, tokText, &inSingleLineComment), tokText)
+		ann, err := a.Annotate(read, tokenKind(tok, tokText, &inSingleLineComment, assemblyMode), tokText)
 		if err != nil {
 			return nil, err
 		}
@@ -218,14 +238,14 @@ func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
 // AsText converts source code into an Text-highlighted version;
 // It accepts optional configuration parameters to control rendering
 // (see OrderedList as one example)
-func AsText(src []byte, options ...Option) ([]byte, error) {
+func AsText(src []byte, assemblyMode bool, options ...Option) ([]byte, error) {
 	opt := DefaultTextConfig
 	for _, f := range options {
 		f(&opt)
 	}
 
 	var buf bytes.Buffer
-	err := Print(NewScanner(src), &buf, TextPrinter(opt))
+	err := Print(NewScanner(src), &buf, TextPrinter(opt), assemblyMode)
 	if err != nil {
 		return nil, err
 	}
@@ -247,9 +267,9 @@ func NewScannerReader(src io.Reader) *scanner.Scanner {
 	return &s
 }
 
-func tokenKind(tok rune, tokText string, inSingleLineComment *bool) Kind {
+func tokenKind(tok rune, tokText string, inSingleLineComment *bool, assemblyMode bool) Kind {
 	// Check if we are in a bash-style single line comment
-	if tok == '#' {
+	if (assemblyMode && tok == ';') || (!assemblyMode && tok == '#') {
 		*inSingleLineComment = true
 	} else if tok == '\n' {
 		*inSingleLineComment = false
@@ -269,6 +289,16 @@ func tokenKind(tok rune, tokText string, inSingleLineComment *bool) Kind {
 	case scanner.Ident:
 		if _, isKW := Keywords[tokText]; isKW {
 			return Keyword
+		}
+		switch tokText {
+		case "private":
+			return Private
+		case "public":
+			return Public
+		case "protected":
+			return Protected
+		case "class":
+			return Class
 		}
 		if r, _ := utf8.DecodeRuneInString(tokText); unicode.IsUpper(r) {
 			return Type
