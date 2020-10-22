@@ -2,10 +2,6 @@
 
 Edit and create `favicon.ico` and `favicon.png` images on the terminal.
 
-## Packaging status
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/favicon.svg)](https://repology.org/project/favicon/versions)
-
 ## Quick start
 
 You can install `favicon` with Go 1.10 or later:
