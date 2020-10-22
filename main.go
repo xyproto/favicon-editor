@@ -190,7 +190,7 @@ Set NO_COLOR=1 to disable colors.
 
 		// For .ico and .png
 		if newMode != modeBlank {
-			mode, e.mode = newMode, newMode
+			e.mode = newMode
 		}
 
 		// Test save, to check if the file can be created and written, or not
