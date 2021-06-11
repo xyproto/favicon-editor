@@ -10,7 +10,7 @@ You can install `fed` with Go 1.10 or later:
 
 ## Features and limitations
 
-* Will only save as 16-color graysacle images.
+* Will only save graphics as 16-color graysacle images.
 
 ## Hotkeys
 
