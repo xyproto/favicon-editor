@@ -10,7 +10,9 @@ You can install `fed` with Go 1.10 or later:
 
 ## Features and limitations
 
+* Can open both Icon files and PNG files.
 * Will only save graphics as 16-color graysacle images.
+* Lets you draw a simple favicon.ico file even if you are ssh'd into a web server.
 
 ## Hotkeys
 
