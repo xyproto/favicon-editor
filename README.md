@@ -1,12 +1,12 @@
-# favicon [![Build Status](https://travis-ci.com/xyproto/favicon.svg?branch=master)](https://travis-ci.com/xyproto/favicon) [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/favicon)](https://goreportcard.com/report/github.com/xyproto/favicon) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/favicon/master/LICENSE)
+# Favicon Editor [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/favicon)](https://goreportcard.com/report/github.com/xyproto/favicon) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/favicon/master/LICENSE)
 
-Edit and create `favicon.ico` and `favicon.png` images on the terminal.
+View, create and edit `favicon.ico` and `favicon.png` images by using a TUI.
 
 ## Quick start
 
-You can install `favicon` with Go 1.10 or later:
+You can install `fed` with Go 1.10 or later:
 
-    go get -u github.com/xyproto/favicon
+    go get -u github.com/xyproto/fed
 
 ## Features and limitations
 
@@ -35,12 +35,12 @@ You can install `favicon` with Go 1.10 or later:
 
 On Linux:
 
-    git clone https://github.com/xyproto/favicon
-    cd favicon
+    git clone https://github.com/xyproto/fed
+    cd fed
     go build -mod=vendor
-    sudo install -Dm755 o /usr/bin/favicon
+    sudo install -Dm755 o /usr/bin/fed
     gzip favicon.1
-    sudo install -Dm644 favicon.1.gz /usr/share/man/man1/favicon.1.gz
+    sudo install -Dm644 fed.1.gz /usr/share/man/man1/fed.1.gz
 
 ## General info
 
