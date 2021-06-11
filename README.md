@@ -39,7 +39,7 @@ On Linux:
     cd fed
     go build -mod=vendor
     sudo install -Dm755 o /usr/bin/fed
-    gzip favicon.1
+    gzip fav.1
     sudo install -Dm644 fed.1.gz /usr/share/man/man1/fed.1.gz
 
 ## General info
