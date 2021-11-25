@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/sourcegraph/annotate"
+	"github.com/xyproto/mode"
 )
 
 // Kind represents a syntax highlighting kind (class) which will be assigned to tokens.
@@ -39,6 +40,7 @@ const (
 	Public
 	Protected
 	Dollar
+	AssemblyEnd
 )
 
 //go:generate gostringer -type=Kind
@@ -72,6 +74,7 @@ type TextConfig struct {
 	Private       string
 	Public        string
 	Protected     string
+	AssemblyEnd   string
 }
 
 // TextPrinter implements Printer interface and is used to produce
@@ -119,6 +122,8 @@ func (c TextConfig) GetClass(kind Kind) string {
 		return c.Private
 	case Protected:
 		return c.Protected
+	case AssemblyEnd:
+		return c.AssemblyEnd
 	}
 	return ""
 }
@@ -198,14 +203,15 @@ var DefaultTextConfig = TextConfig{
 	Private:       "red",
 	Public:        "red",
 	Protected:     "red",
+	AssemblyEnd:   "lightyellow",
 }
 
-func Print(s *scanner.Scanner, w io.Writer, p Printer, assemblyMode bool) error {
+func Print(s *scanner.Scanner, w io.Writer, p Printer, m mode.Mode) error {
 	tok := s.Scan()
 	inSingleLineComment := false
 	for tok != scanner.EOF {
 		tokText := s.TokenText()
-		err := p.Print(w, tokenKind(tok, tokText, &inSingleLineComment, assemblyMode), tokText)
+		err := p.Print(w, tokenKind(tok, tokText, &inSingleLineComment, m), tokText)
 		if err != nil {
 			return err
 		}
@@ -216,7 +222,7 @@ func Print(s *scanner.Scanner, w io.Writer, p Printer, assemblyMode bool) error 
 	return nil
 }
 
-func Annotate(src []byte, a Annotator, assemblyMode bool) (annotate.Annotations, error) {
+func Annotate(src []byte, a Annotator, m mode.Mode) (annotate.Annotations, error) {
 	var (
 		anns                annotate.Annotations
 		s                   = NewScanner(src)
@@ -226,7 +232,7 @@ func Annotate(src []byte, a Annotator, assemblyMode bool) (annotate.Annotations,
 	)
 	for tok != scanner.EOF {
 		tokText := s.TokenText()
-		ann, err := a.Annotate(read, tokenKind(tok, tokText, &inSingleLineComment, assemblyMode), tokText)
+		ann, err := a.Annotate(read, tokenKind(tok, tokText, &inSingleLineComment, m), tokText)
 		if err != nil {
 			return nil, err
 		}
@@ -243,14 +249,14 @@ func Annotate(src []byte, a Annotator, assemblyMode bool) (annotate.Annotations,
 // AsText converts source code into an Text-highlighted version;
 // It accepts optional configuration parameters to control rendering
 // (see OrderedList as one example)
-func AsText(src []byte, assemblyMode bool, options ...Option) ([]byte, error) {
+func AsText(src []byte, m mode.Mode, options ...Option) ([]byte, error) {
 	opt := DefaultTextConfig
 	for _, f := range options {
 		f(&opt)
 	}
 
 	var buf bytes.Buffer
-	err := Print(NewScanner(src), &buf, TextPrinter(opt), assemblyMode)
+	err := Print(NewScanner(src), &buf, TextPrinter(opt), m)
 	if err != nil {
 		return nil, err
 	}
@@ -272,17 +278,16 @@ func NewScannerReader(src io.Reader) *scanner.Scanner {
 	return &s
 }
 
-func tokenKind(tok rune, tokText string, inSingleLineComment *bool, assemblyMode bool) Kind {
+func tokenKind(tok rune, tokText string, inSingleLineComment *bool, m mode.Mode) Kind {
 	// Check if we are in a bash-style single line comment
-	if (assemblyMode && tok == ';') || (!assemblyMode && tok == '#') {
+	if (m == mode.Assembly && tok == ';') || (m != mode.Assembly && m != mode.GoAssembly && m != mode.Clojure && m != mode.Lisp && m != mode.C && m != mode.Cpp && tok == '#') {
 		*inSingleLineComment = true
 	} else if tok == '\n' {
 		*inSingleLineComment = false
 	}
 	// Check if this is #include or #define
-	if tokText == "include" || tokText == "define" || tokText == "ifdef" || tokText == "ifndef" || tokText == "endif" || tokText == "else" {
+	if (m == mode.C || m == mode.Cpp) && (tokText == "include" || tokText == "define" || tokText == "ifdef" || tokText == "ifndef" || tokText == "endif" || tokText == "else") {
 		*inSingleLineComment = false
-		// Color it like a keyword
 		return Keyword
 	}
 	// If we are, return the Comment kind
@@ -304,6 +309,8 @@ func tokenKind(tok rune, tokText string, inSingleLineComment *bool, assemblyMode
 			return Protected
 		case "class":
 			return Class
+		case "JMP", "jmp", "LEAVE", "leave", "RET", "ret", "CALL", "call":
+			return AssemblyEnd
 		}
 		if r, _ := utf8.DecodeRuneInString(tokText); unicode.IsUpper(r) {
 			return Type
