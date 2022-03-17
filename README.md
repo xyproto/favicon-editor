@@ -1,18 +1,18 @@
-# Favicon Editor [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/favicon)](https://goreportcard.com/report/github.com/xyproto/favicon) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/favicon/master/LICENSE)
+# Favicon Editor [![Go Report Card](https://goreportcard.com/badge/github.com/xyproto/favicon-editor)](https://goreportcard.com/report/github.com/xyproto/favicon-editor) [![License](https://img.shields.io/badge/license-BSD-green.svg?style=flat)](https://raw.githubusercontent.com/xyproto/favicon-editor/master/LICENSE)
 
 View, create and edit `favicon.ico` and `favicon.png` images by using a TUI.
 
 ## Quick start
 
-You can install `fed` with Go 1.10 or later:
+You can install `favicon-editor` with Go 1.17 or later:
 
-    go get -u github.com/xyproto/fed
+    go install github.com/xyproto/favicon-editor@latest
 
 ## Features and limitations
 
 * Can open both Icon files and PNG files.
 * Will only save graphics as 16-color graysacle images.
-* Lets you draw a simple favicon.ico file even if you are ssh'd into a web server.
+* Lets you draw a simple `favicon.ico` file even if you are ssh'd into a server.
 
 ## Hotkeys
 
@@ -37,12 +37,12 @@ You can install `fed` with Go 1.10 or later:
 
 On Linux:
 
-    git clone https://github.com/xyproto/fed
-    cd fed
+    git clone https://github.com/xyproto/favicon-editor
+    cd favicon-editor
     go build -mod=vendor
-    sudo install -Dm755 o /usr/bin/fed
+    sudo install -Dm755 o /usr/bin/favicon-editor
     gzip fav.1
-    sudo install -Dm644 fed.1.gz /usr/share/man/man1/fed.1.gz
+    sudo install -Dm644 favicon-editor.1.gz /usr/share/man/man1/favicon-editor.1.gz
 
 ## General info
 
