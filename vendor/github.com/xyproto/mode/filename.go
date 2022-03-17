@@ -2,6 +2,7 @@ package mode
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -28,12 +29,12 @@ func Detect(filename string) Mode {
 		mode = Git
 	case ext == ".vimrc" || ext == ".vim" || ext == ".nvim":
 		mode = Vim
-	case strings.HasPrefix(baseFilename, "Makefile") || strings.HasPrefix(baseFilename, "makefile") || baseFilename == "GNUmakefile":
+	case ext == ".mk" || strings.HasPrefix(baseFilename, "Makefile") || strings.HasPrefix(baseFilename, "makefile") || baseFilename == "GNUmakefile":
 		// NOTE: This one MUST come before the ext == "" check below!
 		mode = Makefile
 	case strings.HasSuffix(filename, ".git/config") || ext == ".ini" || ext == ".cfg" || ext == ".conf" || ext == ".service" || ext == ".target" || ext == ".socket" || strings.HasPrefix(ext, "rc"):
 		fallthrough
-	case ext == ".yml" || ext == ".toml" || ext == ".ini" || ext == ".bp" || strings.HasSuffix(filename, ".git/config") || (ext == "" && (strings.HasSuffix(baseFilename, "file") || strings.HasSuffix(baseFilename, "rc") || hasS(configFilenames, baseFilename))):
+	case ext == ".yml" || ext == ".toml" || ext == ".ini" || ext == ".bp" || ext == ".rule" || strings.HasSuffix(filename, ".git/config") || (ext == "" && (strings.HasSuffix(baseFilename, "file") || strings.HasSuffix(baseFilename, "rc") || hasS(configFilenames, baseFilename))):
 		mode = Config
 	case ext == ".sh" || ext == ".ksh" || ext == ".tcsh" || ext == ".bash" || ext == ".zsh" || ext == ".local" || ext == ".profile" || baseFilename == "PKGBUILD" || (strings.HasPrefix(baseFilename, ".") && strings.Contains(baseFilename, "sh")): // This last part covers .bashrc, .zshrc etc
 		mode = Shell
@@ -54,8 +55,10 @@ func Detect(filename string) Mode {
 			mode = Go
 		case ".odin":
 			mode = Odin
-		case ".hs":
+		case ".hs", ".hts":
 			mode = Haskell
+		case ".agda":
+			mode = Agda
 		case ".sml":
 			mode = StandardML
 		case ".m4":
@@ -100,10 +103,14 @@ func Detect(filename string) Mode {
 			mode = V
 		case ".kt", ".kts":
 			mode = Kotlin
-		case ".java", ".gradle":
+		case ".java":
 			mode = Java
+		case ".gradle":
+			mode = Gradle
 		case ".hal":
 			mode = HIDL
+		case ".aidl":
+			mode = AIDL
 		case ".sql":
 			mode = SQL
 		case ".ok":
@@ -118,6 +125,8 @@ func Detect(filename string) Mode {
 			mode = Nim
 		case ".pas", ".pp", ".lpr":
 			mode = ObjectPascal
+		case ".bas", ".module", ".frm", ".cls", ".ctl", ".vbp", ".vbg", ".form", ".gambas":
+			mode = Basic
 		case ".bat":
 			mode = Bat
 		case ".adb", ".gpr", ".ads", ".ada":
@@ -147,9 +156,18 @@ func Detect(filename string) Mode {
 		mode = Markdown
 	}
 
-	// If the mode is not set and the filename is all uppercase and no ".", use modeMarkdown
-	if mode == Blank && !strings.Contains(baseFilename, ".") && baseFilename == strings.ToUpper(baseFilename) {
-		mode = Markdown
+	// If the mode is not set, and there is no extensions
+	if mode == Blank && !strings.Contains(baseFilename, ".") {
+		if baseFilename == strings.ToUpper(baseFilename) {
+			// If the filename is all uppercase and no ".", use mode.Markdown
+			mode = Markdown
+		} else if len(baseFilename) > 2 && baseFilename[2] == '-' {
+			// Could it be a rule-file, that starts with ie. "90-" ?
+			if _, err := strconv.Atoi(baseFilename[:2]); err == nil { // success
+				// Yes, assume this is a shell-like configuration file
+				mode = Config
+			}
+		}
 	}
 
 	return mode

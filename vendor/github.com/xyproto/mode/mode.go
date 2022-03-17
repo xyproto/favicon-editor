@@ -27,7 +27,9 @@ const (
 	Zig            // Zig
 	Kotlin         // Kotlin
 	Java           // Java
-	HIDL           // the Android-related Hardware Abstraction Layer Interface Definition Language
+	Gradle         // Gradle
+	HIDL           // Android-related: Hardware Abstraction Layer Interface Definition Language
+	AIDL           // Android-related: Android Interface Definition Language
 	SQL            // Structured Query Language
 	Oak            // Oak
 	Rust           // Rust
@@ -56,6 +58,8 @@ const (
 	D              // D
 	Perl           // Perl
 	M4             // M4 macros
+	Agda           // Agda
+	Basic          // FreeBasic, Gambas 3
 )
 
 // String will return a short lowercase string representing the given editor mode
@@ -103,8 +107,12 @@ func (mode Mode) String() string {
 		return "Kotlin"
 	case Java:
 		return "Java"
+	case Gradle:
+		return "Gradle"
 	case HIDL:
 		return "HIDL"
+	case AIDL:
+		return "AIDL"
 	case SQL:
 		return "SQL"
 	case Oak:
@@ -163,6 +171,10 @@ func (mode Mode) String() string {
 		return "V"
 	case M4:
 		return "M4"
+	case Agda:
+		return "Agda"
+	case Basic:
+		return "Basic"
 	default:
 		return "?"
 	}
