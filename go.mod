@@ -9,5 +9,5 @@ require (
 	github.com/xyproto/mode v0.4.0 // indirect
 	github.com/xyproto/syntax v1.10.2
 	github.com/xyproto/vt100 v1.9.12
-	golang.org/x/sys v0.0.0-20220317061510-51cd9980dadf // indirect
+	golang.org/x/sys v0.1.0 // indirect
 )
